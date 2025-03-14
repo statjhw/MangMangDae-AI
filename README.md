@@ -40,11 +40,11 @@ docs: README.md 수정
 
 ## 📌 2. 테스트 환경 조성
 
-### 2.1 pytest 기반 유닛 테스트
+### ✅ 2.1 pytest 기반 유닛 테스트
 - 모든 함수 및 기능 추가 시 유닛 테스트(pytest)를 작성해야 합니다.
 - PR 생성 시, pytest를 통과하지 않으면 Merge가 불가능합니다.
 
-### 2.2 GitHub Actions을 이용한 자동화 (CI/CD)
+### ✅ 2.2 GitHub Actions을 이용한 자동화 (CI/CD)
 
 Github Actions을 활용하여 PR이 생성되거나 코드 변경 시 자동으로 pytest 실행합니다.
 
