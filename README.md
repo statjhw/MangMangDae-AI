@@ -60,3 +60,4 @@ https://various-grouse-4e1.notion.site/pytest-and-github-action-1798597bc5a58007
 | **커밋 메시지** | `feat`, `fix`, `refactor`, `test` 등 사용 |
 | **Merge 기준** | **2명 이상의 승인 필요**       |
 | **테스트 자동화** | `pytest` + GitHub Actions 적용 |
+---
