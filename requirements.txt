@@ -2,3 +2,4 @@ selenium==4.30.0
 requests==2.32.3
 bs4==0.0.2
 boto3==1.37.23
+dotenv==0.9.9
