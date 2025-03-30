@@ -66,49 +66,10 @@ class Crawler:
 
 
 class WanterCrawler(Crawler):
-    def __init__(self, data_path=os.getcwd(), site_name="wanted"):
+    def __init__(self, data_path=os.path.join(os.getcwd(), "job_ingrestion", "backup"), site_name="wanted"):
         super().__init__(data_path=data_path, site_name=site_name)
         self.endpoint = "https://www.wanted.co.kr"
-        self.job_parent_category = 518 #개발자만
-        self.job_category_id2name = {
-            10110: "소프트웨어 엔지니어",
-            873: "웹 개발자",
-            872: "서버 개발자",
-            669: "프론트엔드 개발자",
-            660: "자바 개발자",
-            900: "C,C++ 개발자",
-            899: "파이썬 개발자",
-            1634: "머신러닝 엔지니어",
-            674: "DevOps / 시스템 관리자",
-            665: "시스템,네트워크 관리자",
-            655: "데이터 엔지니어",
-            895: "Node.js 개발자",
-            677: "안드로이드 개발자",
-            678: "iOS 개발자",
-            658: "임베디드 개발자",
-            877: "개발 매니저",
-            1024: "데이터 사이언티스트",
-            1026: "기술지원",
-            676: "QA,테스트 엔지니어",
-            672: "하드웨어 엔지니어",
-            1025: "빅데이터 엔지니어",
-            671: "보안 엔지니어",
-            876: "프로덕트 매니저",
-            10111: "크로스플랫폼 앱 개발자",
-            1027: "블록체인 플랫폼 엔지니어",
-            10231: "DBA",
-            893: "PHP 개발자",
-            661: ".NET 개발자",
-            896: "영상,음성 엔지니어",
-            10230: "ERP전문가",
-            939: "웹 퍼블리셔",
-            898: "그래픽스 엔지니어",
-            795: "CTO,Chief Technology Officer",
-            10112: "VR 엔지니어",
-            1022: "BI 엔지니어",
-            894: "루비온레일즈 개발자",
-            793: "CIO,Chief Information Officer"
-        }
+
         self.map_section_to_field = {
             "포지션 상세": "position_detail",
             "주요업무": "main_tasks",
