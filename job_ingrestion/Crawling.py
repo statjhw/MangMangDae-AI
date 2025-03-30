@@ -2,16 +2,30 @@ import os
 import requests
 import time
 import json
+import datetime
+from logger import get_logger
 from bs4 import BeautifulSoup
+from dynamodb import save_job_to_dynamodb
+
 
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+def get_chrome_driver():
+    return webdriver.Chrome()
+
+logger = get_logger(__name__)
 
 class Crawler:
-    def __init__(self, data_path=os.getcwd(), site_name=""):
+    def __init__(self, data_path=os.path.join(os.getcwd(), "job_ingrestion", "backup"), site_name=""):
         self.headers = {
             'User-Agent' : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:136.0) Gecko/20100101 Firefox/136.0'
         }
-        self.driver = webdriver.safari
+        self.driver = get_chrome_driver()
         if not os.path.exists(data_path) :
             os.mkdir(data_path)
         self.data_path = data_path
@@ -95,7 +109,7 @@ class WanterCrawler(Crawler):
             894: "루비온레일즈 개발자",
             793: "CIO,Chief Information Officer"
         }
-        self.tag2field_map = {
+        self.map_section_to_field = {
             "포지션 상세": "position_detail",
             "주요업무": "main_tasks",
             "자격요건": "qualifications",
@@ -103,45 +117,53 @@ class WanterCrawler(Crawler):
             "혜택 및 복지": "benefits",
             "채용 전형": "hiring_process",
             "기술 스택 • 툴": "tech_stack",
-            "마감일": "deadline"
         }
 
     def get_url_list(self) :
         filename = self.filenames["url_list"]
-        driver = self.driver()
+        driver = self.driver
 
         job_dict = {}
         if os.path.exists(filename):
             with open(filename) as f:
                 job_dict = json.load(f)
         
-        for job_category in self.job_category_id2name:
-            if job_category in job_dict:
-                continue
+        with open("job_ingrestion/mapping_table.json") as f :
+            mapping_table = json.load(f)
 
-            driver.get(f"{self.endpoint}/wdlist/{self.job_parent_category}/{job_category}")
+        for job_parent_category,  job_category_id2name in mapping_table.items():
+            for job_category in job_category_id2name :
+                if job_category in job_dict: 
+                    continue
 
-            page_source = self.scroll_down_page(driver)
+                driver.get(f"{self.endpoint}/wdlist/{job_parent_category}/{job_category}")
+                logger.info("job_category로 이동")
 
-            soup = BeautifulSoup(page_source, 'html.parser')
-            ul_element = soup.find('ul', {'data-cy': 'job-list'})
-            position_list = [
-                a_tag['href'] for a_tag in ul_element.find_all('a') if a_tag.get('href', '').startswith('/wd/')
-            ]
+                logger.info("scroll_down_page 함수 호출 시작")
+                page_source = self.scroll_down_page(driver)
 
-            job_dict[job_category] = {
-                "page_source": page_source,
-                "position_list": position_list
-            }
+                try : 
+                    soup = BeautifulSoup(page_source, 'html.parser')
+                    ul_element = soup.find('ul', {'data-cy': 'job-list'})
+                    position_list = [
+                        a_tag['href'] for a_tag in ul_element.find_all('a') if a_tag.get('href', '').startswith('/wd/')
+                    ]
+                except Exception :
+                    position_list = []
 
-            with open(os.path.join(self.data_data, f"{self.site_name}.url_list.json"))
-                json.dump(job_dict, f)
-            
-        driver.close()
+                job_dict[job_category] = {
+                    "page_source": page_source,
+                    "position_list": position_list
+                }
+
+                with open(os.path.join(self.data_path, f"{self.site_name}.url_list.json"), "w") as f:
+                    logger.info("wanted.url_list.json 파일에 저장")
+                    json.dump(job_dict, f)
 
         return job_dict
 
     def get_recruit_content_info(self, job_dict=None):
+        logger.info("get_recruit_content_info 함수 실행")
         if job_dict is None:
             if os.path.exists(self.filenames['url_list']):
                 with open(self.filenames["url_list"]) as f:
@@ -150,13 +172,14 @@ class WanterCrawler(Crawler):
                 job_dict = {}
 
         filename = self.filenames["content_info"]
-        driver = self.driver()
+        driver = self.driver
 
         position_content_dict = {}
         if os.path.exists(filename):
             with open(filename) as f:
                 position_content_dict = json.load(f)
         
+    
         for job_category, job_info in job_dict.items():
             if job_category in position_content_dict:
                 continue
@@ -165,85 +188,29 @@ class WanterCrawler(Crawler):
             for position_url in job_info["position_list"]:
                 driver.get(f"{self.endpoint}{position_url}")
                 time.sleep(1)
-                content_dict[position_url] = driver.page_source
+                
+                try:    #추가 정보를 위해 더보기 창 클릭
+                    wait = WebDriverWait(driver, 5)
+                    more_button = wait.until(EC.element_to_be_clickable(
+                        (By.XPATH, "//span[text()='상세 정보 더 보기']/ancestor::button")
+                    ))
+                    more_button.click()
+                    logger.info(f"{position_url}의 상세 정보 더 보기 버튼 클릭")
+                    time.sleep(0.5)  # 클릭 후 데이터가 로드되도록 약간 대기
+                except:
+                    logger.info(f"{position_url}에는 '상세 정보 더 보기' 버튼이 없음")
 
+                content_dict[position_url] = driver.page_source
+                logger.info(f"{position_url}의 채용공고로 이동")
             position_content_dict[job_category] = content_dict
 
             with open(os.path.join(self.data_path, f"{self.site_name}.content_info.json"), "w") as f:
                 json.dump(position_content_dict, f)
-            
-            driver.close()
-
-            return position_content_dict
+                logger.info(f"{job_category}의 content_info.json 저장")
         
+        return position_content_dict
+
     def postprocess(self, position_content_dict=None):
-        if position_content_dict is None:
-            if os.path.exists(self.filenames["content_info"]):
-                with open(self.filenames["content_info"]) as f:
-                    position_content_dict = json.load(f)
-            else:
-                position_content_dict = self.get_recruit_content_info()
-
-        file = open(self.filenames["result"], "w")
-
-        postprocess_dict = {}
-        if os.path.exists(self.filenames["content_info"]):
-            with open(self.filenames["content_info"]) as f:
-                postprocess_dict = json.load(f)
-
-        for job_category, info_dict in position_content_dict.items():
-            for url, content in info_dict.items():
-                result = {
-                    "url": f"{self.endpoint}{url}",
-                    "job_category": job_category,
-                    "job_name": self.job_category_id2name[int(job_category)]
-                }
-
-                soup = BeautifulSoup(content, 'html')
-
-                job_header = soup.find("section", class_="JobHeader_className__HttDA")
-
-                try:
-                    result['title'] = job_header.find("h2").text
-                except AttributeError:
-                    continue
-
-                _company_info = job_header.find("span", class_="JobHeader_companyNameText__uuJyu")
-                result['company_name'] = _company_info.text
-                result['company_id'] = _company_info.find("a")["href"]
-
-                _tag_list = job_header.find("div", class_="Tags_tagsClass__mvehZ").find_all("a")
-                result['tag_name'] = [tag.text.lstrip("#") for tag in _tag_list]
-                result['tag_id'] = [tag["href"] for tag in _tag_list]
-
-                job_body = soup.find("section", class_="JobDescription_JobDescription__VWfcb")
-
-                p_tags = job_body.find_all("p")
-                h3_tags = job_body.find_all("h3")
-
-                for i, p_tag in enumerate(p_tags):
-                    h3_tag = h3_tags[i - 1].text if i != 0 else "설명"
-                    if h3_tag not in self.tag2field_map:
-                        continue
-
-                    field_name = self.tag2field_map[h3_tag]
-                    if field_name == "tech_list":
-                        result[field_name] = [
-                            skill.text for skill in p_tag.find("div").find_all("div")
-                        ]
-                    else:
-                        result[field_name] = [
-                            line for lines in p_tag.text.split("<br>") for line in lines.split("• ") if line
-                        ]
-
-                postprocess_dict[url] = result
-                file.write(json.dumps(result) + "\n")
-
-        file.close()
-
-        return postprocess_dict
-
-    def update_postprocess(self, position_content_dict=None):
         if position_content_dict is None:
             if os.path.exists(self.filenames["content_info"]):
                 with open(self.filenames["content_info"]) as f:
@@ -304,10 +271,12 @@ class WanterCrawler(Crawler):
                     
                     # Subsections
                     section_divs = job_description_article.find_all("div", class_="JobDescription_JobDescription__paragraph__87w8I")
+                    logger.info(f"section_div의 갯수: {len(section_divs)}")
                     for section_div in section_divs:
                         h3 = section_div.find("h3", class_="wds-1y0suvb")
                         if h3:
                             section_title = h3.text.strip()
+                            logger.info(section_title)
                             content_span = section_div.find("span", class_="wds-wcfcu3")
                             if content_span:
                                 content_text = content_span.get_text(separator='\n').strip()
@@ -318,9 +287,22 @@ class WanterCrawler(Crawler):
                                 else:
                                     detailed_content[self.map_section_to_field.get(section_title, section_title.lower().replace(" ", "_"))] = content_text
                 
+                #마감일
+                try:
+                    deadline = soup.find("span", class_="wds-lgio6k").get_text()
+                except:
+                    deadline = "no_data"
+                #위치 
+                try: 
+                    location = soup.find("span", class_="wds-1o4yxuk").get_text()
+                except:
+                    location = "no_data"
+                
+
                 # Construct result
                 result = {
                     "url": f"https://www.wanted.co.kr{url}",
+                    "crawled_at": datetime.datetime.utcnow().isoformat(),
                     "job_category": job_category,
                     "job_name": self.job_category_id2name.get(int(job_category), job_category),
                     "title": job_title,
@@ -328,17 +310,25 @@ class WanterCrawler(Crawler):
                     "company_id": company_id,
                     "tag_name": tag_name_list,
                     "tag_id": tag_id_list,
+                    "dead_line": deadline,
+                    "location": location,
                     **detailed_content
                 }
-                
+                save_job_to_dynamodb(result)
                 # Write to file
                 file.write(json.dumps(result, ensure_ascii=False) + "\n")
         
         file.close()
 
     def run(self):
-        job_dict = self.get_url_list()
-        position_content_dict = self.get_recruit_content_info(job_dict)
-        #result_dict = self.postprocess(position_content_dict)
-        result_dict = self.update_postprocess(position_content_dict)
+        #job_dict = self.get_url_list()
+        #position_content_dict = self.get_recruit_content_info(job_dict)
+        with open("job_ingrestion/backup/wanted.content_info.json") as f:
+            position_content_dict = json.load(f)
+        result_dict = self.postprocess(position_content_dict)
         return result_dict
+
+if __name__ == "__main__" :
+    crawler = WanterCrawler()
+    crawler.run()
+    
