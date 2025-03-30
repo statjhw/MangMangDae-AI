@@ -1,3 +1,5 @@
+#env
+job_ingrestion/.env
 #driver
 chromedriver-mac-arm64/
 job_ingrestion/backup/
