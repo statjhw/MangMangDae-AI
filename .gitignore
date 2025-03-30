@@ -4,6 +4,8 @@ job_ingrestion/.env
 chromedriver-mac-arm64/
 job_ingrestion/backup/
 
+/DS_Store
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
