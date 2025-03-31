@@ -282,14 +282,9 @@ class WanterCrawler(Crawler):
         file.close()
 
     def run(self):
-        #job_dict = self.get_url_list()
-        #position_content_dict = self.get_recruit_content_info(job_dict)
-        with open("job_ingrestion/backup/wanted.content_info.json") as f:
-            position_content_dict = json.load(f)
+        job_dict = self.get_url_list()
+        position_content_dict = self.get_recruit_content_info(job_dict)
         result_dict = self.postprocess(position_content_dict)
         return result_dict
 
-if __name__ == "__main__" :
-    crawler = WanterCrawler()
-    crawler.run()
-    
+
