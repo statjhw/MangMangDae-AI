@@ -7,23 +7,18 @@ from logger import get_logger
 from bs4 import BeautifulSoup
 from dynamodb import save_job_to_dynamodb
 
-
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
+from driver import get_chrome_driver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-def get_chrome_driver():
-    return webdriver.Chrome()
 
 logger = get_logger(__name__)
 
 class Crawler:
     def __init__(self, data_path=os.path.join(os.getcwd(), "job_ingrestion", "backup"), site_name=""):
         self.headers = {
-            'User-Agent' : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:136.0) Gecko/20100101 Firefox/136.0'
+            'User-Agent' : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:136.0) Ggetko/20100101 Firefox/136.0'
         }
         self.driver = get_chrome_driver()
         if not os.path.exists(data_path) :
