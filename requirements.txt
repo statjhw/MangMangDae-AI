@@ -3,3 +3,4 @@ requests==2.32.3
 bs4==0.0.2
 boto3==1.37.23
 dotenv==0.9.9
+apache-airflow==2.10.5
