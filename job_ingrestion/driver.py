@@ -1,6 +1,7 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
+
 def get_chrome_driver():
     chrome_options = Options()
     chrome_options.add_argument("--headless=new")
