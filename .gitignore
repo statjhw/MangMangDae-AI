@@ -1,8 +1,8 @@
 #env
-job_integation/.env
+job_integration/.env
 #driver
 chromedriver-mac-arm64/
-job_integation/backup/
+job_integration/backup/
 
 .DS_Store
 
