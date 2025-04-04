@@ -160,8 +160,23 @@ class WanterCrawler(Crawler):
                 driver.get(f"{self.endpoint}{position_url}")
                 time.sleep(1)
 
-                try:  # 추가 정보를 위해 더보기 창 클릭
+                try:
+                    # Wait for the button to be present in the DOM
                     wait = WebDriverWait(driver, 5)
+                    more_button = wait.until(
+                        EC.presence_of_element_located(
+                            (
+                                By.XPATH,
+                                "//span[text()='상세 정보 더 보기']/ancestor::button",
+                            )
+                        )
+                    )
+                    
+                    # Scroll the button into view
+                    driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});", more_button)
+                    time.sleep(0.5)  # Give time for scrolling animation
+                    
+                    # Wait until the button becomes clickable and click it
                     more_button = wait.until(
                         EC.element_to_be_clickable(
                             (
@@ -172,7 +187,7 @@ class WanterCrawler(Crawler):
                     )
                     more_button.click()
                     logger.info(f"{position_url}의 상세 정보 더 보기 버튼 클릭")
-                    time.sleep(0.5)  # 클릭 후 데이터가 로드되도록 약간 대기
+                    time.sleep(0.5)  # Wait for data to load after click
                 except:
                     logger.info(f"{position_url}에는 '상세 정보 더 보기' 버튼이 없음")
 
