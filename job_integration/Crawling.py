@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 class Crawler:
     def __init__(
         self,
-        data_path=os.path.join(os.getcwd(), "job_ingrestion", "backup"),
+        data_path=os.path.join(os.getcwd(), "job_integration", "backup"),
         site_name="",
     ):
         self.headers = {
@@ -69,7 +69,7 @@ class Crawler:
 class WanterCrawler(Crawler):
     def __init__(
         self,
-        data_path=os.path.join(os.getcwd(), "job_ingrestion", "backup"),
+        data_path=os.path.join(os.getcwd(), "job_integration", "backup"),
         site_name="wanted",
     ):
         super().__init__(data_path=data_path, site_name=site_name)
@@ -94,7 +94,7 @@ class WanterCrawler(Crawler):
             with open(filename) as f:
                 job_dict = json.load(f)
 
-        with open("job_ingrestion/mapping_table.json") as f:
+        with open("job_integration/mapping_table.json") as f:
             mapping_table = json.load(f)
 
         for job_parent_category, job_category_id2name in mapping_table.items():

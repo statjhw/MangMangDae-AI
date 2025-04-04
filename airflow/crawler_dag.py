@@ -5,8 +5,8 @@ from datetime import datetime, timedelta
 import os
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-BACKUP_DIR = os.path.join(BASE_DIR, "../job_ingrestion/backup")
-CRAWLER_SCRIPT = os.path.join(BASE_DIR, "../job_ingrestion/main.py")
+BACKUP_DIR = os.path.join(BASE_DIR, "../job_integration/backup")
+CRAWLER_SCRIPT = os.path.join(BASE_DIR, "../job_integration/main.py")
 
 default_args = {
     'owner': 'airflow',
