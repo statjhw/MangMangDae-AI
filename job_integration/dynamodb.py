@@ -36,6 +36,9 @@ def save_job_to_dynamodb(job_data: dict):
     except Exception as e:
         logger.info("db 저장 실패\n" + f"message: {e}")
 
+def get_job_by_url(url: str):
+    response = table.get_item(Key={"url": url})
+    return response.get("Item")
 
 def delete_all_items():
     try:
@@ -49,3 +52,4 @@ def delete_all_items():
         logger.info(f"테이블의 모든 항목을 삭제 완료")
     except Exception as e:
         logger.info("테이블의 모든 항목 삭제 실패\n" + f"message: {e}")
+

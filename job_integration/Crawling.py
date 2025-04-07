@@ -8,12 +8,17 @@ from bs4 import BeautifulSoup
 from driver import get_chrome_driver
 from dynamodb import save_job_to_dynamodb
 from logger import get_logger
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, ElementClickInterceptedException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 logger = get_logger(__name__)
 
+NOT_ELEMENT_COUNT = 0
+TIMEOUT_EXCEPTION_COUNT = 0
+ELEMENT_CLICK_INTERCEPT_COUNT = 0
+EXCEPTION_COUNT = 0
 
 class Crawler:
     def __init__(
@@ -22,7 +27,11 @@ class Crawler:
         site_name="",
     ):
         self.headers = {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:136.0) Ggetko/20100101 Firefox/136.0"
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:136.0) Gecko/20100101 Firefox/136.0",
+            "Referer": "https://www.wanted.co.kr/",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "ko,en-US;q=0.9,en;q=0.8",
+            "Connection": "keep-alive"
         }
         self.driver = get_chrome_driver()
         if not os.path.exists(data_path):
@@ -74,6 +83,14 @@ class WanterCrawler(Crawler):
     ):
         super().__init__(data_path=data_path, site_name=site_name)
         self.endpoint = "https://www.wanted.co.kr"
+
+        with open("job_integration/mapping_table.json") as f :
+            raw_mapping = json.load(f)
+            self.job_category_id2name = {
+                job_id: name
+                for parent, job_map in raw_mapping.items()
+                for job_id, name in job_map.items()
+            }
 
         self.map_section_to_field = {
             "포지션 상세": "position_detail",
@@ -135,6 +152,7 @@ class WanterCrawler(Crawler):
         return job_dict
 
     def get_recruit_content_info(self, job_dict=None):
+        global NOT_ELEMENT_COUNT, TIMEOUT_EXCEPTION_COUNT, ELEMENT_CLICK_INTERCEPT_COUNT, EXCEPTION_COUNT
         logger.info("get_recruit_content_info 함수 실행")
         if job_dict is None:
             if os.path.exists(self.filenames["url_list"]):
@@ -161,20 +179,35 @@ class WanterCrawler(Crawler):
                 time.sleep(1)
 
                 try:  # 추가 정보를 위해 더보기 창 클릭
-                    wait = WebDriverWait(driver, 5)
-                    more_button = wait.until(
-                        EC.element_to_be_clickable(
-                            (
-                                By.XPATH,
-                                "//span[text()='상세 정보 더 보기']/ancestor::button",
+                    elements = driver.find_elements(By.XPATH, "//span[text()='상세 정보 더 보기']/ancestor::button")
+                    logger.info(f"상세 정보 버튼 요소 개수: {len(elements)}")
+
+                    if not elements: 
+                        logger.info(f"{position_url} -> 버튼 요소 없음 (find_elements 기준)")
+                        NOT_ELEMENT_COUNT += 1
+                    else:
+                        wait = WebDriverWait(driver, 5)
+                        more_button = wait.until(
+                            EC.element_to_be_clickable(
+                                (
+                                    By.XPATH,
+                                    "//span[text()='상세 정보 더 보기']/ancestor::button",
+                                )
                             )
                         )
-                    )
-                    more_button.click()
-                    logger.info(f"{position_url}의 상세 정보 더 보기 버튼 클릭")
-                    time.sleep(0.5)  # 클릭 후 데이터가 로드되도록 약간 대기
-                except:
-                    logger.info(f"{position_url}에는 '상세 정보 더 보기' 버튼이 없음")
+                        more_button.click()
+                        logger.info(f"{position_url}의 상세 정보 더 보기 버튼 클릭")
+                        time.sleep(1)  # 클릭 후 데이터가 로드되도록 약간 대기
+
+                except TimeoutException:
+                    logger.warning(f" {position_url} -> 버튼이 5초 내에 clickable 상태가 되지 않음")
+                    TIMEOUT_EXCEPTION_COUNT += 1
+                except ElementClickInterceptedException:
+                    logger.warning(f"🚫 {position_url} ▶️ 클릭 시 다른 요소에 가려짐 (Intercepted)")
+                    ELEMENT_CLICK_INTERCEPT_COUNT += 1
+                except Exception as e:
+                    logger.error(f"❌ {position_url} ▶️ 클릭 중 알 수 없는 오류 발생: {e}")
+                    EXCEPTION_COUNT += 1
 
                 content_dict[position_url] = driver.page_source
                 logger.info(f"{position_url}의 채용공고로 이동")
@@ -356,4 +389,8 @@ class WanterCrawler(Crawler):
         job_dict = self.get_url_list()
         position_content_dict = self.get_recruit_content_info(job_dict)
         result_dict = self.postprocess(position_content_dict)
+        logger.info(f"버튼 없음: {NOT_ELEMENT_COUNT}")
+        logger.info(f"Timeout: {TIMEOUT_EXCEPTION_COUNT}")
+        logger.info(f"클릭 차단: {ELEMENT_CLICK_INTERCEPT_COUNT}")
+        logger.info(f"기타 오류: {EXCEPTION_COUNT}")
         return result_dict
