@@ -23,7 +23,7 @@ EXCEPTION_COUNT = 0
 class Crawler:
     def __init__(
         self,
-        data_path=os.path.join(os.getcwd(), "job_integration", "backup"),
+        data_path=os.path.join(os.getcwd(), "data_collection", "backup"),
         site_name="",
     ):
         self.headers = {
@@ -78,13 +78,13 @@ class Crawler:
 class WanterCrawler(Crawler):
     def __init__(
         self,
-        data_path=os.path.join(os.getcwd(), "job_integration", "backup"),
+        data_path=os.path.join(os.getcwd(), "data_collection", "backup"),
         site_name="wanted",
     ):
         super().__init__(data_path=data_path, site_name=site_name)
         self.endpoint = "https://www.wanted.co.kr"
 
-        with open("job_integration/mapping_table.json") as f :
+        with open("data_collection/crawler/mapping_table.json") as f :
             raw_mapping = json.load(f)
             self.job_category_id2name = {
                 job_id: name
@@ -111,7 +111,7 @@ class WanterCrawler(Crawler):
             with open(filename) as f:
                 job_dict = json.load(f)
 
-        with open("job_integration/mapping_table.json") as f:
+        with open("data_collection/crawler/mapping_table.json") as f:
             mapping_table = json.load(f)
 
         for job_parent_category, job_category_id2name in mapping_table.items():
