@@ -87,7 +87,7 @@ class WanterCrawler(Crawler):
         with open("data_collection/crawler/mapping_table.json") as f :
             raw_mapping = json.load(f)
             self.job_category_id2name = {
-                job_id: name
+                int(job_id): name
                 for parent, job_map in raw_mapping.items()
                 for job_id, name in job_map.items()
             }
