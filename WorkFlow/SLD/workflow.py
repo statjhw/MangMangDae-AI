@@ -1,13 +1,18 @@
 from langgraph.graph import StateGraph, END
 from datetime import datetime
-from utils import GraphState, memory, job_chain, company_chain, salary_chain, advice_chain, answer_chain, summary_memory_chain
+from WorkFlow.Util.utils import GraphState, memory, job_chain, company_chain, salary_chain, advice_chain, answer_chain, summary_memory_chain
 from retrival.embeddings import vector_store
 from config import tavily_tool
+from WorkFlow.Util.logger import NodeLogger, log_execution_time
 
+# 워크플로우 로거 초기화
+workflow_logger = NodeLogger("Workflow")
 
 # 워크플로우 노드
+@log_execution_time(workflow_logger)
 def parse_input(state: GraphState) -> GraphState:
     """사용자 입력 파싱 (LLM 없이 직접 매핑)."""
+    workflow_logger.log_process("사용자 입력 파싱 시작")
     # user_input은 dict로 candidate_major, candidate_interest, candidate_career, candidate_question 포함
     state["parsed_input"] = {
         "education": state["user_input"]["candidate_major"],
@@ -23,18 +28,21 @@ def parse_input(state: GraphState) -> GraphState:
         "timestamp": datetime.now().isoformat()
     })
     memory.save_context({"input": state["user_input"]["candidate_question"]}, {"output": ""})
+    workflow_logger.log_process("사용자 입력 파싱 완료")
     return state
 
+@log_execution_time(workflow_logger)
 def recommend_jobs(state: GraphState) -> GraphState:
-		# 템플릿 2
+    workflow_logger.log_process("직무 추천 시작")
+    # 템플릿 2
     user_profile = (
         f"학력: {state['parsed_input']['education']}, "
         f"경력: {state['parsed_input']['experience']}, "
         f"희망 직무: {state['parsed_input']['desired_job']}, "
     )
-    job_results = vector_store.similarity_search(state["parsed_input"]["question"]) ######### 리트리버
+    job_results = vector_store.similarity_search(state["parsed_input"]["question"])
+    workflow_logger.log_data(f"검색된 직무 수: {len(job_results)}", "검색 결과")
 
-    ####################################### 여기도 벡터 db업데이트하면 수정 필요
     job_list = "\n".join(
         [f"내용: {doc.page_content}"
          f"직무: {doc.metadata['job_name']}"
@@ -42,17 +50,17 @@ def recommend_jobs(state: GraphState) -> GraphState:
          f"복지: {doc.metadata['tag_name']}"
          for doc in job_results[:3]]
     )
-    ###########################################
     state["job_recommendations"] = job_chain.run(user_profile=user_profile, job_list=job_list)
     state["selected_job"] = job_results[0]
+    workflow_logger.log_process("직무 추천 완료")
     return state
 
+@log_execution_time(workflow_logger)
 def get_company_info(state: GraphState) -> GraphState:
     """회사 정보 조회 (selected_job의 job_list 사용)."""
+    workflow_logger.log_process("회사 정보 조회 시작")
     selected_job = state["selected_job"]
-    # page_content에서 [회사 소개] 추출
     content_lines = selected_job.page_content.split("\n")
-    ####################################### 여기도 벡터 db업데이트하면 수정 필요
     company_description = ""
     for i, line in enumerate(content_lines):
         if line.startswith("[회사 소개]"):
@@ -65,12 +73,14 @@ def get_company_info(state: GraphState) -> GraphState:
         f"산업: 스타트업, AI, "
         f"주요 특징: {selected_job.metadata['tag_name']}"
     )
-    ###########################################
     state["company_info"] = company_chain.run(company_data=company_data_str)
+    workflow_logger.log_process("회사 정보 조회 완료")
     return state
 
+@log_execution_time(workflow_logger)
 def get_salary_info(state: GraphState) -> GraphState:
     """급여 정보 조회 (웹 검색 사용)."""
+    workflow_logger.log_process("급여 정보 조회 시작")
     job_data = (
         f"직무: {state['selected_job'].metadata['job_name']}, "
         f"회사: {state['selected_job'].metadata['company_name']}"
@@ -82,33 +92,37 @@ def get_salary_info(state: GraphState) -> GraphState:
             "\n".join([f"- {res['title']}: {res['content']} (링크: {res['url']})" for res in search_results])
             if search_results else "검색 결과 없음"
         )
+        workflow_logger.log_data(f"검색 결과 수: {len(search_results)}", "검색 결과")
     except Exception as e:
         search_results_str = f"검색 오류: {str(e)}"
+        workflow_logger.log_error(e, "급여 정보 검색")
     state["salary_info"] = salary_chain.run(job_data=job_data, search_results=search_results_str)
+    workflow_logger.log_process("급여 정보 조회 완료")
     return state
 
-
+@log_execution_time(workflow_logger)
 def get_preparation_advice(state: GraphState) -> GraphState:
     """준비 조언 제공 (selected_job의 job_list 사용)."""
+    workflow_logger.log_process("준비 조언 생성 시작")
     user_profile = (
         f"학력: {state['parsed_input']['education']}, "
         f"경력: {state['parsed_input']['experience']}, "
         f"희망 직무: {state['parsed_input']['desired_job']}, "
     )
-    ####################################### 여기도 벡터 db업데이트하면 수정 필요
     job_data = (
         f"직무: {state['selected_job'].metadata['job_name']}, "
         f"회사: {state['selected_job'].metadata['company_name']}, "
-        f"설명: {state['selected_job'].page_content.split('[우리가 찾는 인재상]')[0].replace('[회사 소개]', '').strip()}, " ##############################3
+        f"설명: {state['selected_job'].page_content.split('[우리가 찾는 인재상]')[0].replace('[회사 소개]', '').strip()}, "
         f"복지: {state['selected_job'].metadata['tag_name']}"
     )
-    ##############################
-
     state["preparation_advice"] = advice_chain.run(user_profile=user_profile, job_data=job_data)
+    workflow_logger.log_process("준비 조언 생성 완료")
     return state
 
+@log_execution_time(workflow_logger)
 def summarize_results(state: GraphState) -> GraphState:
     """결과 요약 및 대화 메모리 관리."""
+    workflow_logger.log_process("결과 요약 시작")
     chat_history = "\n".join(
         [f"[{msg['timestamp']}] 사용자: {msg['user']}\n어시스턴트: {msg['assistant']}" for msg in state['chat_history']]
     )
@@ -122,10 +136,14 @@ def summarize_results(state: GraphState) -> GraphState:
     memory.save_context({"input": state["user_input"]["candidate_question"]}, {"output": state["final_answer"]})
 
     if state["conversation_turn"] >= 6:
+        workflow_logger.log_process("대화 요약 시작")
         summary = summary_memory_chain.run(chat_history=chat_history)
         state["chat_history"] = [{"user": "대화 요약", "assistant": summary, "timestamp": datetime.now().isoformat()}]
         memory.clear()
         memory.save_context({"input": "대화 요약"}, {"output": summary})
+        workflow_logger.log_process("대화 요약 완료")
+    
+    workflow_logger.log_process("결과 요약 완료")
     return state
 
 # 워크플로우 설정
