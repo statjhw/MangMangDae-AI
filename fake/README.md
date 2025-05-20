@@ -32,3 +32,6 @@ users = [generate_user() for _ in range(10)]
 - 다양한 시나리오 커버
 - 일관된 데이터 구조
 - 랜덤하지만 의미 있는 조합 
+
+## 사용법
+# python user_data_generator.py -n <생성할_유저_수> -o <출력_폴더>
