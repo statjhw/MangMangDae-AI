@@ -32,7 +32,7 @@ class JobDataPreprocessor:
         Returns:
             임베딩에 최적화된 텍스트
         """
-        logger.info(f"Starting data preprocessing for item ID: {job_data.get('id', 'N/A')}")
+        logger.info(f"Starting data preprocessing for item URL: {job_data.get('url', 'N/A')}")
         try:
             text_parts = []
             
@@ -129,12 +129,12 @@ class JobDataPreprocessor:
             # HuggingFace E5 모델용 포맷팅: [document] 접두사 추가
             formatted_text = f"[document] {normalized_text}"
             
-            logger.info(f"Successfully preprocessed data for item ID: {job_data.get('id', 'N/A')}")
+            logger.info(f"데이터 전처리 성공 - URL: {job_data.get('url', 'N/A')}")
             return formatted_text
         except Exception as e:
-            logger.error(f"Error during preprocessing data for item ID: {job_data.get('id', 'N/A')}: {str(e)}", exc_info=True)
-            # Handle or re-raise the exception as appropriate
-            return None # Or some default/error state
+            logger.error(f"데이터 전처리 중 오류 발생 - URL: {job_data.get('url', 'N/A')}: {str(e)}", exc_info=True)
+            # 예외 처리 또는 재발생
+            return None # 오류 상태 반환
     
     def _normalize_text(self, text: str) -> str:
         """
@@ -153,35 +153,3 @@ class JobDataPreprocessor:
         normalized = re.sub(r'\s{2,}', ' ', normalized)
         
         return normalized.strip()
-
-    def clean_html(self, html_content):
-        logger.debug("Attempting to clean HTML content.")
-        if not html_content:
-            logger.warning("HTML content is empty or None. Returning empty string.")
-            return ""
-        try:
-            soup = BeautifulSoup(html_content, "html.parser")
-            text = soup.get_text(separator=" ")
-            cleaned_text = " ".join(text.split())
-            logger.debug("HTML content cleaned successfully.")
-            return cleaned_text
-        except Exception as e:
-            logger.error(f"Error cleaning HTML: {str(e)}", exc_info=True)
-            return "" # 오류 발생 시 빈 문자열 반환
-    
-    def extract_skills(self, text_data, predefined_skills):
-        logger.debug("Attempting to extract skills.")
-        if not text_data:
-            logger.warning("Text data for skill extraction is empty or None. Returning empty list.")
-            return []
-        # ... (skill extraction logic) ...
-        found_skills = [] # Placeholder
-        # Simulate skill extraction
-        for skill in predefined_skills:
-            if re.search(r'\b' + re.escape(skill) + r'\b', text_data, re.IGNORECASE):
-                found_skills.append(skill)
-        if found_skills:
-            logger.info(f"Extracted skills: {found_skills}")
-        else:
-            logger.info("No predefined skills found in text.")
-        return found_skills
