@@ -60,7 +60,7 @@ class DynamoDB:
         
         # 각 항목 반환
         for item in response['Items']:
-            logger.debug(f"Yielding item: {item.get('id', 'N/A')} from scan") # Assuming 'id' exists for logging
+            logger.debug(f"Yielding item: {item.get('url', 'N/A')} from scan") # Assuming 'url' exists for logging
             yield item
         
         # 페이지네이션 처리 - 다음 페이지가 있으면 계속 스캔
@@ -70,7 +70,7 @@ class DynamoDB:
             response = self.table.scan(**kwargs)
             
             for item in response['Items']:
-                logger.debug(f"Yielding item: {item.get('id', 'N/A')} from paginated scan") # Assuming 'id' exists
+                logger.debug(f"Yielding item: {item.get('url', 'N/A')} from paginated scan") # Assuming 'url' exists
                 yield item
         logger.info(f"Finished scan for DynamoDB table: {table_name}")
 
