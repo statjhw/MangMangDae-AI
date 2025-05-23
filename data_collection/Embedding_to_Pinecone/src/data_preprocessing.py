@@ -1,6 +1,6 @@
 import re
 from bs4 import BeautifulSoup
-from .logger import setup_logger # 로거 임포트
+from logger import setup_logger # 로거 임포트
 from typing import Dict, List, Any, Optional
 
 # 로거 설정
@@ -33,6 +33,12 @@ class JobDataPreprocessor:
             임베딩에 최적화된 텍스트
         """
         logger.info(f"Starting data preprocessing for item URL: {job_data.get('url', 'N/A')}")
+        
+        # 빈 입력이나 필수 필드가 없는 경우 처리
+        if not job_data or (not job_data.get('title') and not job_data.get('company_name') and not job_data.get('url')):
+            logger.warning("빈 입력 또는 필수 필드 누락으로 인해 전처리를 건너뜁니다.")
+            return None
+            
         try:
             text_parts = []
             
@@ -146,10 +152,13 @@ class JobDataPreprocessor:
         Returns:
             정규화된 텍스트
         """
-        # 여러 줄바꿈 정규화
+        # 여러 줄바꿈 정규화 (3개 이상의 연속 줄바꿈을 2개로)
         normalized = re.sub(r'\n{3,}', '\n\n', text)
         
-        # 여러 공백 정규화
-        normalized = re.sub(r'\s{2,}', ' ', normalized)
+        # 여러 공백 정규화 (줄바꿈이 아닌 공백 문자들만 처리)
+        normalized = re.sub(r'[ \t]{2,}', ' ', normalized)
+        
+        # 줄바꿈 바로 앞의 공백 제거
+        normalized = re.sub(r'[ \t]+\n', '\n', normalized)
         
         return normalized.strip()
