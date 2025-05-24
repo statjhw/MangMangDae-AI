@@ -1,11 +1,11 @@
-from typing import Dict, List
+from typing import Dict, List, Any, Callable
 from langchain_core.runnables import RunnableSequence
 from config import get_llm
-from Template.promots import job_recommendation_prompt, company_info_prompt, salary_info_prompt, preparation_advice_prompt, career_advice_prompt, summary_memory_prompt
-from langchain.memory import ConversationBufferMemory
+from Template.prompts import job_recommendation_prompt, company_info_prompt, salary_info_prompt, preparation_advice_prompt, summary_memory_prompt, job_verification_prompt
+from langchain_community.chat_message_histories import ChatMessageHistory
 
 # 대화 메모리
-memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+memory = ChatMessageHistory()
 
 # llm 객체를 함수로 받아옴
 llm = get_llm()
@@ -19,24 +19,51 @@ class RunInvokeAdapter:
     def run(self, **kwargs):
         """invoke 메소드를 run 인터페이스로 노출"""
         return self.runnable.invoke(kwargs)
+    
+    def invoke(self, data):
+        """invoke 메소드 추가"""
+        if isinstance(data, dict):
+            return self.runnable.invoke(data)
+        return self.runnable.invoke({"input": data})
 
 # llm chain (각 체인에 run 메소드 제공)
 job_chain = RunInvokeAdapter(job_recommendation_prompt | llm)
 company_chain = RunInvokeAdapter(company_info_prompt | llm)
 salary_chain = RunInvokeAdapter(salary_info_prompt | llm)
 advice_chain = RunInvokeAdapter(preparation_advice_prompt | llm)
-answer_chain = RunInvokeAdapter(career_advice_prompt | llm)
+verify_job_chain = RunInvokeAdapter(job_verification_prompt | llm)
 summary_memory_chain = RunInvokeAdapter(summary_memory_prompt | llm)
 
-# LangGraph 상태 정의
+# Graph 상태 타입 정의
 class GraphState(Dict):
-    user_input: str
-    parsed_input: Dict
-    job_recommendations: str
-    company_info: str
-    salary_info: str
-    preparation_advice: str
-    final_answer: str
-    selected_job: Dict
-    chat_history: List[Dict]
-    conversation_turn: int 
+    """Graph 상태를 저장하는 클래스"""
+    pass
+
+# 도구 함수 호출 유틸리티
+def invoke_tool(tool_func: Callable, input_data: Any) -> Any:
+    """LangChain 도구 함수를 직접 호출하는 유틸리티"""
+    try:
+        # 도구 타입 감지
+        if hasattr(tool_func, "func"):
+            # 데코레이터로 생성된 도구의 원본 함수 추출
+            # LangChain의 @tool 데코레이터는 원본 함수를 'func' 속성에 저장
+            original_func = tool_func.func
+            return original_func(input_data)
+        
+        # LangChain BaseTool.invoke() 메서드 호출
+        elif hasattr(tool_func, "invoke"):
+            # 이 방식이 가장 권장됨 (LangChain 공식 인터페이스)
+            return tool_func.invoke(input_data)
+        
+        # 일반 함수 직접 호출
+        elif callable(tool_func):
+            return tool_func(input_data)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        tool_name = getattr(tool_func, "name", str(tool_func))
+        raise RuntimeError(f"Error calling tool {tool_name}: {str(e)}")
+    
+    tool_name = getattr(tool_func, "name", str(tool_func))
+    raise ValueError(f"Cannot invoke tool: {tool_name}")
+
