@@ -132,11 +132,9 @@ class JobDataPreprocessor:
             # 텍스트 정규화
             normalized_text = self._normalize_text(combined_text)
             
-            # HuggingFace E5 모델용 포맷팅: [document] 접두사 추가
-            formatted_text = f"[document] {normalized_text}"
             
             logger.info(f"데이터 전처리 성공 - URL: {job_data.get('url', 'N/A')}")
-            return formatted_text
+            return normalized_text
         except Exception as e:
             logger.error(f"데이터 전처리 중 오류 발생 - URL: {job_data.get('url', 'N/A')}: {str(e)}", exc_info=True)
             # 예외 처리 또는 재발생

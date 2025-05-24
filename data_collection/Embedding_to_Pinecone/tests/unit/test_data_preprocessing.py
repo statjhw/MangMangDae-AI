@@ -45,8 +45,7 @@ def test_preprocess_basic_functionality(preprocessor, sample_job_data):
     
     assert processed_text is not None
     assert isinstance(processed_text, str)
-    assert processed_text.startswith("[document] ")
-    assert "직무: 테스트 엔지니어" in processed_text
+    assert processed_text.startswith("직무: 테스트 엔지니어")
     assert "회사: 테스트 주식회사" in processed_text
     assert "태그: Python, UnitTest" in processed_text
     assert "주요 업무:\n- 주요 업무 1\n- 주요 업무 2" in processed_text
@@ -67,8 +66,7 @@ def test_preprocess_missing_fields(preprocessor):
     processed_text = preprocessor.preprocess(partial_data)
     
     assert processed_text is not None
-    assert processed_text.startswith("[document] ")
-    assert "직무: 부분 데이터 엔지니어" in processed_text
+    assert processed_text.startswith("직무: 부분 데이터 엔지니어")
     assert "회사: 부분 주식회사" in processed_text
     assert "태그:" not in processed_text  # 누락된 필드는 포함되지 않아야 함
 
