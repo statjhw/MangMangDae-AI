@@ -1,6 +1,6 @@
 import re
 from bs4 import BeautifulSoup
-from logger import setup_logger # 로거 임포트
+from .logger import setup_logger # 로거 임포트
 from typing import Dict, List, Any, Optional
 
 # 로거 설정

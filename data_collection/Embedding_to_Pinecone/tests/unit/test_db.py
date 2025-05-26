@@ -3,9 +3,9 @@ from unittest.mock import MagicMock, patch
 import sys
 import os
 
-# 상위 디렉토리 경로를 추가하여 src 모듈을 import할 수 있도록 함
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
-from src.db import DynamoDB, Pinecone, Postgres
+# 상위 디렉토리 경로를 추가하여 db 모듈을 import할 수 있도록 함
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))))
+from db import DynamoDB, Pinecone, Postgres
 
 # DynamoDB 테스트
 @patch('boto3.resource')
@@ -53,7 +53,7 @@ def test_dynamodb_scan_items_generator(mock_resource):
     assert items == [{'id': '1'}, {'id': '2'}, {'id': '3'}, {'id': '4'}]
 
 # Pinecone 테스트
-@patch('src.db.PineconeVectorStore')
+@patch('db.pinecone_db.PineconeVectorStore')
 def test_pinecone_init(mock_pinecone):
     # Pinecone 초기화 테스트
     mock_pinecone.return_value = MagicMock()

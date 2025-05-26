@@ -1,10 +1,14 @@
+import os
+import sys
+# 프로젝트 루트 디렉토리를 Python 경로에 추가
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))))
+
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.schema import Document
 import torch
-import os
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
-from .db import Pinecone
+from db import Pinecone
 from .logger import setup_logger
 
 # 로거 설정

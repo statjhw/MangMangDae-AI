@@ -1,8 +1,12 @@
 import os
+import sys
+# 프로젝트 루트 디렉토리를 Python 경로에 추가
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+
 from dotenv import load_dotenv
 from src.data_preprocessing import JobDataPreprocessor
 from src.embedding import EmbeddingProcessor
-from src.db import DynamoDB, Postgres
+from db import DynamoDB, Postgres
 from src.logger import setup_logger # 로거 임포트
 
 # main.py용 로거 설정
@@ -79,4 +83,4 @@ def main():
         logger.info("메인 파이프라인 종료.")
     
 if __name__ == "__main__":
-    main() 
+    main()
