@@ -1,27 +1,16 @@
 from functools import lru_cache
 from typing import List, Dict
-from openai import OpenAI
 from sentence_transformers import CrossEncoder
 from dense_retriever import dense_search
 from sparse_retriever import sparse_search
 from job_store import get_meta_by_id
 
-client   = OpenAI()
+
 reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2", device="cpu")
 
-@lru_cache(maxsize=512)
-def cache_hyde_document(prompt: str) -> str:
-    msg = [{"role":"user","content":f"Write a detailed job post that matches:\n{prompt}"}]
-    return client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=msg,
-        temperature=0.2
-    ).choices[0].message.content
-
-def ensemble_retriever(query: str, top_k: int = 5) -> List[Dict]:
-    fake_doc = cache_hyde_document(query)
-    dense   = dense_search(fake_doc, 20)
-    sparse  = sparse_search(query,   20)
+def ensemble_retriever(query: str, top_k: int = 5):
+    sparse  = sparse_search(f"[Query] {query}", top_k=20)
+    dense   = dense_search(f"[Query] {query}", top_k=20)
 
     pool = {}
     for d in dense:
