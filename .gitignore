@@ -1,5 +1,7 @@
 #env
 job_integration/.env
+.env
+
 #driver
 chromedriver-mac-arm64/
 data_collection/backup/

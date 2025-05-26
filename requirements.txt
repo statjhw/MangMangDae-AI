@@ -3,4 +3,13 @@ webdriver-manager>=4.0.1
 beautifulsoup4>=4.12.2
 requests>=2.31.0
 python-dotenv>=1.0.0
-boto3>=1.34.0
+boto3>=1.34.0          
+sentence-transformers>=2.4
+torch                  
+openai
+pinecone-client
+rank-bm25
+nltk
+numpy
+faiss-cpu         
+tqdm                    

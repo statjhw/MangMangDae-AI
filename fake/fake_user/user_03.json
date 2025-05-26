@@ -1,0 +1,31 @@
+{
+  "education": {
+    "level": "고등학교 졸업",
+    "major": "경영학",
+    "school": "ABC 고등학교"
+  },
+  "career": {
+    "years": 3,
+    "current_status": "재직중",
+    "job_category": "데이터 사이언티스트"
+  },
+  "skills": {
+    "tech_stack": [
+      "Hadoop",
+      "NumPy",
+      "Python",
+      "Pandas"
+    ],
+    "level": "중급"
+  },
+  "preferences": {
+    "desired_job": "데이터 사이언티스트",
+    "desired_location": [
+      "제주",
+      "세종"
+    ],
+    "desired_salary": "4,687만원",
+    "work_type": "상주"
+  },
+  "conversation": "경영학 전공이고 Python, Pandas을 다룰 줄 아는데, 데이터 사이언티스트로 일하고 싶어요. 어떤 회사들이 있나요?"
+}

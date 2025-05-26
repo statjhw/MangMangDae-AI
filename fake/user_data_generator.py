@@ -1,6 +1,8 @@
 import json
 from typing import List, Dict
 import random
+import os
+import argparse  
 
 # 기본 데이터 정의
 EDUCATION_LEVELS = [
@@ -138,7 +140,23 @@ def generate_user() -> Dict:
     
     return user
 
-# 10명의 가상 사용자 데이터 생성
+
 if __name__ == "__main__":
-    users = generate_user()
-    print(users)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-n", "--n", type=int, default=3, help="생성할 유저 수 (기본 3)")
+    parser.add_argument("-o", "--out_dir", default="fake_users", help="저장 폴더")
+    args = parser.parse_args()
+
+    os.makedirs(args.out_dir, exist_ok=True)
+
+    for i in range(1, args.n + 1):
+        user = generate_user()
+        path = os.path.join(args.out_dir, f"user_{i:02d}.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(user, f, ensure_ascii=False, indent=2)
+        print(f"✓ saved {path}")
+        
+# 10명의 가상 사용자 데이터 생성
+# if __name__ == "__main__":
+#     users = generate_user()
+#     print(users)
