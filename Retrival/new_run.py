@@ -91,6 +91,9 @@ def main():
         role = m.group(1).strip() if m else "(Unknown)"
         comp = m.group(2).strip() if m else "(Unknown)"
         score = match.get("score", 0)
+        # extract URL from the end of the document text
+        u = re.search(r"채용공고 URL:\s*(https?://\S+)", text_full)
+        job_url = u.group(1) if u else "(No URL)"
         # prepare snippet: remove prefix lines
         snippet = text_full
         snippet = re.sub(r"\[document\]\s*", "", snippet)
@@ -100,7 +103,7 @@ def main():
         if len(snippet) > 200:
             snippet = snippet[:200] + "..."
 
-        print(f"{idx}. {job_id} | 직무:{role} | 회사:{comp} | Score:{score:.4f}")
+        print(f"{idx}. {job_id} | URL: {job_url} | 직무: {role} | 회사: {comp} | Score:{score:.4f}")
         print(f"   {snippet}\n")
 
 if __name__ == "__main__":
