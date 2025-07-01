@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from opensearchpy import OpenSearch, RequestsHttpConnection
 from requests_aws4auth import AWS4Auth
 import boto3
-from .logger import setup_logger
+from db.logger import setup_logger
 
 # 로거 설정
 logger = setup_logger(__name__)
@@ -112,13 +112,25 @@ class OpenSearchDB:
                 "mappings": {
                     "properties": {
                         "url": {"type": "keyword"},
-                        "title": {"type": "text"},
-                        "company": {"type": "text"},
-                        "location": {"type": "text"},
-                        "description": {"type": "text"},
-                        "requirements": {"type": "text"},
-                        "created_at": {"type": "date"},
-                        "updated_at": {"type": "date"}
+                        "title": {"type": "text", "analyzer": "standard"},
+                        "company_name": {"type": "text", "analyzer": "standard"},
+                        "company_id": {"type": "keyword"},
+                        "location": {"type": "text", "analyzer": "standard"},
+                        "job_name": {"type": "text", "analyzer": "standard"},
+                        "job_category": {"type": "keyword"},
+                        "dead_line": {"type": "text"},
+                        "crawled_at": {"type": "date", "format": "strict_date_optional_time||epoch_millis"},
+                        "tag_name": {"type": "keyword"},
+                        "tag_id": {"type": "keyword"},
+                        "position_detail": {"type": "text", "analyzer": "standard"},
+                        "main_tasks": {"type": "text", "analyzer": "standard"},
+                        "qualifications": {"type": "text", "analyzer": "standard"},
+                        "preferred_qualifications": {"type": "text", "analyzer": "standard"},
+                        "benefits": {"type": "text", "analyzer": "standard"},
+                        "hiring_process": {"type": "text", "analyzer": "standard"},
+                        "tech_stack": {"type": "text", "analyzer": "standard"},
+                        "created_at": {"type": "date", "format": "strict_date_optional_time||epoch_millis"},
+                        "updated_at": {"type": "date", "format": "strict_date_optional_time||epoch_millis"}
                     }
                 }
             }
@@ -168,6 +180,34 @@ class OpenSearchDB:
             return response
         except Exception as e:
             logger.error(f"Error indexing document: {str(e)}")
+            raise
+    
+    def bulk_index_with_ids(self, documents, doc_ids, index_name=None):
+        """
+        여러 문서를 고유 ID와 함께 벌크로 인덱싱합니다.
+        
+        Args:
+            documents (list): 인덱싱할 문서 리스트
+            doc_ids (list): 문서 ID 리스트
+            index_name (str): 인덱스 이름 (기본값: self.index_name)
+        """
+        if index_name is None:
+            index_name = self.index_name
+            
+        if len(documents) != len(doc_ids):
+            raise ValueError("Documents and doc_ids must have the same length")
+            
+        bulk_data = []
+        for doc, doc_id in zip(documents, doc_ids):
+            bulk_data.append({"index": {"_index": index_name, "_id": doc_id}})
+            bulk_data.append(doc)
+        
+        try:
+            response = self.client.bulk(body=bulk_data, refresh=True)
+            logger.info(f"Successfully bulk indexed {len(documents)} documents with IDs")
+            return response
+        except Exception as e:
+            logger.error(f"Error bulk indexing documents with IDs: {str(e)}")
             raise
     
     def bulk_index(self, documents, index_name=None):
@@ -253,3 +293,7 @@ class OpenSearchDB:
         except Exception as e:
             logger.error(f"Error getting index info for {index_name}: {str(e)}")
             raise 
+
+if __name__ == "__main__":
+    opensearch = OpenSearchDB()
+    opensearch.delete_index("wanted_jobs")

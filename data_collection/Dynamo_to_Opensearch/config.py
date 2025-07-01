@@ -29,14 +29,22 @@ DEFAULT_MIGRATION_CONFIG = {
     'field_mapping': {
         'url': 'url',
         'title': 'title', 
-        'company': 'company',
+        'company_name': 'company_name',
+        'company_id': 'company_id',
         'location': 'location',
-        'description': 'description',
-        'requirements': 'requirements',
-        'salary': 'salary',
-        'job_type': 'job_type',
-        'experience_level': 'experience_level',
-        'skills': 'skills',
+        'job_name': 'job_name',
+        'job_category': 'job_category',
+        'dead_line': 'dead_line',
+        'crawled_at': 'crawled_at',
+        'tag_name': 'tag_name',
+        'tag_id': 'tag_id',
+        'position_detail': 'position_detail',
+        'main_tasks': 'main_tasks',
+        'qualifications': 'qualifications',
+        'preferred_qualifications': 'preferred_qualifications',
+        'benefits': 'benefits',
+        'hiring_process': 'hiring_process',
+        'tech_stack': 'tech_stack',
         'created_at': 'created_at',
         'updated_at': 'updated_at'
     },
@@ -62,32 +70,62 @@ OPENSEARCH_MAPPING = {
                 "analyzer": "standard",
                 "search_analyzer": "standard"
             },
-            "company": {
+            "company_name": {
                 "type": "text",
                 "analyzer": "standard"
+            },
+            "company_id": {
+                "type": "keyword"
             },
             "location": {
                 "type": "text",
                 "analyzer": "standard"
             },
-            "description": {
+            "job_name": {
                 "type": "text",
                 "analyzer": "standard"
             },
-            "requirements": {
-                "type": "text",
-                "analyzer": "standard"
+            "job_category": {
+                "type": "keyword"
             },
-            "salary": {
+            "dead_line": {
                 "type": "text"
             },
-            "job_type": {
+            "crawled_at": {
+                "type": "date",
+                "format": "strict_date_optional_time||epoch_millis"
+            },
+            "tag_name": {
                 "type": "keyword"
             },
-            "experience_level": {
+            "tag_id": {
                 "type": "keyword"
             },
-            "skills": {
+            "position_detail": {
+                "type": "text",
+                "analyzer": "standard"
+            },
+            "main_tasks": {
+                "type": "text",
+                "analyzer": "standard"
+            },
+            "qualifications": {
+                "type": "text",
+                "analyzer": "standard"
+            },
+            "preferred_qualifications": {
+                "type": "text",
+                "analyzer": "standard"
+            },
+            "benefits": {
+                "type": "text",
+                "analyzer": "standard"
+            },
+            "hiring_process": {
+                "type": "text",
+                "analyzer": "standard"
+            },
+            "tech_stack": {
                 "type": "text",
                 "analyzer": "standard"
             },

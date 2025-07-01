@@ -81,32 +81,47 @@ class DynamoToOpenSearchMigrator:
         Returns:
             dict: OpenSearch용으로 변환된 문서
         """
-        # 기본 필드 매핑
+        # Crawling.py에서 저장되는 실제 필드들로 매핑
         transformed = {
             'url': dynamo_item.get('url', ''),
             'title': dynamo_item.get('title', ''),
-            'company': dynamo_item.get('company', ''),
+            'company_name': dynamo_item.get('company_name', ''),
+            'company_id': dynamo_item.get('company_id', ''),
             'location': dynamo_item.get('location', ''),
-            'description': dynamo_item.get('description', ''),
-            'requirements': dynamo_item.get('requirements', ''),
+            'job_name': dynamo_item.get('job_name', ''),
+            'job_category': dynamo_item.get('job_category', ''),
+            'dead_line': dynamo_item.get('dead_line', ''),
+            'crawled_at': dynamo_item.get('crawled_at', ''),
         }
         
+        # 태그 정보
+        if 'tag_name' in dynamo_item and dynamo_item['tag_name']:
+            transformed['tag_name'] = dynamo_item['tag_name']
+        if 'tag_id' in dynamo_item and dynamo_item['tag_id']:
+            transformed['tag_id'] = dynamo_item['tag_id']
+        
+        # 상세 내용 필드들
+        detail_fields = [
+            'position_detail',
+            'main_tasks', 
+            'qualifications',
+            'preferred_qualifications',
+            'benefits',
+            'hiring_process',
+            'tech_stack'
+        ]
+        
+        for field in detail_fields:
+            if field in dynamo_item and dynamo_item[field]:
+                transformed[field] = dynamo_item[field]
+        
         # 날짜 필드 처리
-        if 'created_at' in dynamo_item:
-            transformed['created_at'] = dynamo_item['created_at']
+        if 'crawled_at' in dynamo_item and dynamo_item['crawled_at']:
+            transformed['created_at'] = dynamo_item['crawled_at']
         else:
             transformed['created_at'] = datetime.now().isoformat()
             
-        if 'updated_at' in dynamo_item:
-            transformed['updated_at'] = dynamo_item['updated_at']
-        else:
-            transformed['updated_at'] = datetime.now().isoformat()
-        
-        # 추가 필드들 (있는 경우)
-        additional_fields = ['salary', 'job_type', 'experience_level', 'skills']
-        for field in additional_fields:
-            if field in dynamo_item:
-                transformed[field] = dynamo_item[field]
+        transformed['updated_at'] = datetime.now().isoformat()
         
         return transformed
     
@@ -123,10 +138,13 @@ class DynamoToOpenSearchMigrator:
         try:
             # 문서 변환
             transformed_docs = []
-            for doc in documents:
+            doc_ids = []
+            for i, doc in enumerate(documents):
                 try:
                     transformed_doc = self.transform_document(doc)
                     transformed_docs.append(transformed_doc)
+                    # Document ID와 동일한 형태로 OpenSearch ID 생성
+                    doc_ids.append(str(self.migrated_count + i + 1))
                 except Exception as e:
                     logger.error(f"Error transforming document: {str(e)}")
                     self.error_count += 1
@@ -136,8 +154,8 @@ class DynamoToOpenSearchMigrator:
                 logger.warning("No documents to migrate in this batch")
                 return True
             
-            # OpenSearch에 벌크 인덱싱
-            response = self.opensearch.bulk_index(transformed_docs)
+            # OpenSearch에 벌크 인덱싱 (고유 ID 포함)
+            response = self.opensearch.bulk_index_with_ids(transformed_docs, doc_ids)
             
             # 응답 확인
             if response.get('errors', False):
@@ -171,10 +189,22 @@ class DynamoToOpenSearchMigrator:
         if not self.test_connections():
             raise Exception("Connection test failed. Please check your configuration.")
         
-        # OpenSearch 인덱스 생성
+        # OpenSearch 인덱스 생성 또는 확인
         try:
             self.opensearch.create_index()
             logger.info("OpenSearch index created/verified")
+            
+            # 기존 문서 수 확인하여 ID 카운터 초기화
+            try:
+                query = {"query": {"match_all": {}}, "size": 0}
+                response = self.opensearch.search(query)
+                existing_count = response['hits']['total']['value']
+                self.migrated_count = existing_count
+                logger.info(f"Found {existing_count} existing documents, starting from ID: doc-{existing_count + 1}")
+            except Exception as e:
+                logger.warning(f"Could not get existing document count: {str(e)}")
+                self.migrated_count = 0
+                
         except Exception as e:
             logger.error(f"Error creating OpenSearch index: {str(e)}")
             raise
