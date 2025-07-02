@@ -1,6 +1,6 @@
 import pytest
 from datetime import datetime
-from WorkFlow.SLD.workflow import (
+from WorkFlow.SLD.tools import (
     parse_input, recommend_jobs, get_company_info,
     get_salary_info, get_preparation_advice, summarize_results
 )

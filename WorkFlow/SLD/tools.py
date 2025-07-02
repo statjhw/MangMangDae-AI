@@ -6,8 +6,8 @@ import os
 from langchain_core.tools import tool
 from langchain_core.documents import Document
 from langsmith import traceable
-from WorkFlow.Util.utils import memory, job_chain, company_chain, salary_chain, advice_chain, summary_memory_chain, verify_job_chain
-from retrieval.embeddings import get_vector_store
+from WorkFlow.Util.utils import memory, job_chain, advice_chain, summary_memory_chain, verify_job_chain, final_answer_chain, question_generation_chain
+from retrieval.embeddings import get_vector_store, retrieve
 from config import get_tavily_tool, RateLimitError
 import re
 
@@ -64,6 +64,7 @@ def parse_input_tool(user_input: Union[Dict[str, str], str]) -> Dict[str, Any]:
             "experience": user_input.get("candidate_career", ""),
             "desired_job": user_input.get("candidate_interest", ""),
             "tech_stack": user_input.get("candidate_tech_stack", []),
+            "location": user_input.get("candidate_location", ""),
             "question": user_input.get("candidate_question", "")
         },
         "chat_history": [{
@@ -71,13 +72,12 @@ def parse_input_tool(user_input: Union[Dict[str, str], str]) -> Dict[str, Any]:
             "assistant": "",
             "timestamp": datetime.now().isoformat()
         }],
-        "conversation_turn": 1,
-        "job_recommendations": "",
-        "selected_job": None,
-        "company_info": "",
-        "salary_info": "",
-        "preparation_advice": "",
-        "final_answer": "",
+        "conversation_turn": 1, 
+        "job_list": None, # 리트리버를 통한 top-k
+        "selected_job": "", # top-1; 최종 선정된 문서 
+        "search_result": "", # top-1 문서의 급여 정보 **단순 급여가 아닌,회사에 대한 정보 중 인터넷으로 찾아야 답변이 가능한 정보
+        "preparation_advice": "", # 조언
+        "final_answer": "", # 최종 답변
         "retry_count": 0,
         "revised_query": ""
     }
@@ -85,6 +85,23 @@ def parse_input_tool(user_input: Union[Dict[str, str], str]) -> Dict[str, Any]:
     memory.add_ai_message("")
     logger.info("Parsed input: %s", state["parsed_input"])
     return state
+
+
+
+def _parse_job_posting(text):
+    """단일 채용 공고 문서(text)를 파싱해 딕셔너리로 반환하는 함수"""
+    data = {}
+
+    data["직무"] = re.search(r"직무:\s*(.*?)\n", text).group(1).strip() if re.search(r"직무:\s*(.*?)\n", text) else None
+    data["회사"] = re.search(r"회사:\s*(.*?)\n", text).group(1).strip() if re.search(r"회사:\s*(.*?)\n", text) else None
+    data["태그"] = re.search(r"태그:\s*(.*?)\n", text).group(1).split(", ") if re.search(r"태그:\s*(.*?)\n", text) else None
+    data["위치"] = re.search(r"위치:\s*(.*?)\n", text).group(1).strip() if re.search(r"위치:\s*(.*?)\n", text) else None
+    data["마감일"] = re.search(r"마감일:\s*(.*?)\n", text).group(1).strip() if re.search(r"마감일:\s*(.*?)\n", text) else None
+    data["자격 요건"] = re.search(r"3\. 자격([\s\S]*?)우대 사항:", text).group(1).strip() if re.search(r"3\. 자격([\s\S]*?)우대 사항:", text) else None
+    data["우대 사항"] = re.search(r"우대 사항:\n([\s\S]*?)혜택 및 복지:", text).group(1).strip() if re.search(r"우대 사항:\n([\s\S]*?)혜택 및 복지:", text) else None
+    data["혜택 및 복지"] = re.search(r"혜택 및 복지:\n([\s\S]*?)채용 과정:", text).group(1).strip() if re.search(r"혜택 및 복지:\n([\s\S]*?)채용 과정:", text) else None
+    data["채용 과정"] = re.search(r"채용 과정:\s*(.*?)\n", text).group(1).strip() if re.search(r"채용 과정:\s*(.*?)\n", text) else None
+    return data
 
 @tool
 @traceable(name="recommend_jobs_tool")
@@ -108,85 +125,98 @@ def recommend_jobs_tool(state_or_params: Union[Dict[str, Any], str]) -> Dict[str
         return {"error": "직무 추천을 위한 유효한 상태가 제공되지 않았습니다."}
     
     state = state_or_params
-    
+
     user_profile = (
         f"학력: {state['parsed_input']['education']}, "
         f"경력: {state['parsed_input']['experience']}, "
         f"희망 직무: {state['parsed_input']['desired_job']}, "
-        f"기술 스택: {', '.join(state['parsed_input']['tech_stack'])}"
+        f"기술 스택: {', '.join(state['parsed_input']['tech_stack'])}",
+        f"희망 근무지역: {state['parsed_input']['location']}",
+        f"사용자 질문: {state['revised_query']}"
     )
+    job_chain_input = {}
+    job_chain_input["user_profile"] = user_profile
+
     base_query = state["revised_query"] if state["revised_query"] else state["parsed_input"]["question"]
-    query = f"{base_query} {' '.join(state['parsed_input']['tech_stack'])}"
+    query = f"[query] {base_query}" 
     
     logger.info("Similarity search query: %s (retry_count: %d)", query, state["retry_count"])
     
     try:
-        job_results = vector_store.similarity_search(query)
-        logger.info("vector_store.similarity_search results: %s", 
-                    [{"page_content": doc.page_content, "id": doc.metadata} for doc in job_results])
+        doc_scores, doc_texts = retrieve(query)
+        logger.info("Retriever results: %s", 
+                    [{"score": score, "text": text} for score,text in zip(doc_scores,doc_texts)])
         
-        if not job_results:
+        if not doc_texts:
             logger.warning("No job results found for query: %s", query)
-            job_list = "검색 결과 없음"
-            state["selected_job"] = Document(
-                page_content="내용: 검색 결과 없음",
-                metadata={"id": "검색 결과 없음"}
-            )
-            state["job_recommendations"] = "검색 결과 없음"
+            state["job_list"] = {}
+            state["selected_job"] = "검색 결과 없음"
         else:
-            # 문서의 페이지 내용으로 직무 목록 구성
-            job_list = "\n".join([doc.page_content for doc in job_results[:3]])
+            selected_jobs_dict = [
+                {
+                    "parsed": _parse_job_posting(text),
+                    "original_text": text
+                }
+                for text in doc_texts
+            ]
+
+            for i, result in enumerate(selected_jobs_dict, start=1):
+                parsed_data = result["parsed"]
+                job_chain_input[f"회사 {i}"] = parsed_data.get("회사", "정보 없음")
+                job_chain_input[f"직무 {i}"] = parsed_data.get("직무", "정보 없음")
+                job_chain_input[f"위치 {i}"] = parsed_data.get("위치", "정보 없음")
+                job_chain_input[f"자격 요건 {i}"] = parsed_data.get("자격 요건", "정보 없음")
+                job_chain_input[f"우대 사항 {i}"] = parsed_data.get("우대 사항", "정보 없음")
+                job_chain_input[f"원본 {i}"] = result["original_text"] # 최종 답변 생성을 위해 원본은 계속 전달
+                job_chain_input[f"코사인유사도 {i}"] = doc_scores[i-1]
+
+            # 만약 검색 결과가 5개 미만일 경우, 나머지 슬롯을 기본값으로 채움.
+            for i in range(len(selected_jobs_dict) + 1, 6):
+                job_chain_input[f"회사 {i}"] = "N/A"
+                job_chain_input[f"직무 {i}"] = "N/A"
+                job_chain_input[f"위치 {i}"] = "N/A"
+                job_chain_input[f"자격 요건 {i}"] = "N/A"
+                job_chain_input[f"우대 사항 {i}"] = "N/A"
+                job_chain_input[f"원본 {i}"] = "해당하는 채용공고가 없습니다."
+                job_chain_input[f"코사인유사도 {i}"] = 0.0
+
+            state["job_list"] = selected_jobs_dict # top k list
+
+            # 선정 프롬프트 결과를 JSON으로 파싱하여 각각 저장
+            try:
+                job_result = job_chain.invoke(job_chain_input)
+                
+                if hasattr(job_result, "content"):
+                    parsed = json.loads(job_result.content)
+                else:
+                    parsed = json.loads(job_result)
+
+                selected_index = parsed.get("selected_job_index")
+                state["selected_job_reason"] = parsed.get("selected_job_reason", "")
+                if selected_index and 1 <= int(selected_index) <= len(selected_jobs_dict):
+                    full_original_text = selected_jobs_dict[int(selected_index) - 1]["original_text"]
+                    state["selected_job"] = full_original_text
+                else:
+                    state["selected_job"] = "적합한 직무를 선택하지 못했습니다."
+            except Exception as e:
+                logger.error("Failed to parse job_chain result as JSON: %s", str(e))
+                state["selected_job"] = "추천 결과 파싱 오류"
+                state["selected_job_reason"] = "추천 결과 파싱 오류"
             
-            # 선택된 직무를 첫 번째 결과로 설정
-            selected_job = job_results[0]
-            
-            # 정규식으로 직무명과 회사명 추출
-            text = selected_job.page_content
-            
-            # 직무 추출: '직무:' 와 '회사:' 사이
-            job_match = re.search(r"직무:\s*(.*?)\s*회사:", text, re.DOTALL)
-            job_name = job_match.group(1).strip() if job_match else "정보 없음"
-            
-            # 회사 추출: '회사:' 와 '직무 카테고리:' 사이
-            company_match = re.search(r"회사:\s*(.*?)\s*직무 카테고리:", text, re.DOTALL)
-            company_name = company_match.group(1).strip() if company_match else "정보 없음"
-            
-            # 태그 추출: '태그:' 와 '위치:' 사이
-            tag_match = re.search(r"태그:\s*(.*?)\s*위치:", text, re.DOTALL)
-            tag_name = tag_match.group(1).strip() if tag_match else "정보 없음"
-            
-            # 메타데이터 설정
-            if not hasattr(selected_job, "metadata") or not isinstance(selected_job.metadata, dict):
-                selected_job.metadata = {}
-            
-            # 메타데이터에 직무명, 회사명, 태그명 추가
-            selected_job.metadata["job_name"] = job_name
-            selected_job.metadata["company_name"] = company_name
-            selected_job.metadata["tag_name"] = tag_name
-            
-            state["selected_job"] = selected_job
-            state["job_recommendations"] = job_chain.invoke({"user_profile": user_profile, "job_list": job_list}).content
+            ###################################################################
     
     except RateLimitError as e:
         logger.error("RateLimitError in similarity_search: %s", str(e))
-        job_list = "API 호출 제한으로 검색 실패"
-        state["selected_job"] = Document(
-            page_content="내용: API 호출 제한",
-            metadata={"id": "정보 없음"}
-        )
-        state["job_recommendations"] = "API 호출 제한으로 추천 실패"
+        state["job_list"] = {}
+        state["selected_job"] = "API 호출 제한으로 추천 실패"
     
     except Exception as e:
         logger.error("Similarity search error: %s", str(e))
-        job_list = "검색 오류"
-        state["selected_job"] = Document(
-            page_content="내용: 검색 오류",
-            metadata={"id": "정보 없음"}
-        )
-        state["job_recommendations"] = "검색 오류"
+        state["job_list"] = {}
+        state["selected_job"] = "검색 오류"
     
-    if "selected_job" in state and state["selected_job"] and hasattr(state["selected_job"], "metadata"):
-        logger.info("Selected job: %s", state["selected_job"].metadata)
+    if "selected_job" in state and state["selected_job"]:
+        logger.info("Selected job: %s", state["selected_job"])
     else:
         logger.info("Selected job: None")
     
@@ -221,41 +251,56 @@ def verify_job_relevance_tool(state_or_params: Union[Dict[str, Any], str]) -> Di
         f"학력: {state['parsed_input']['education']}, "
         f"경력: {state['parsed_input']['experience']}, "
         f"희망 직무: {state['parsed_input']['desired_job']}, "
-        f"기술 스택: {', '.join(state['parsed_input']['tech_stack'])}"
+        f"기술 스택: {', '.join(state['parsed_input']['tech_stack'])}",
+        f"희망 근무지역: {state['parsed_input']['location']}",
     )
-    question = state["parsed_input"]["question"]
-    job_documents = state["selected_job"].page_content if state["selected_job"] else "정보 없음"
+
+    question = state["revised_query"] if state["revised_query"] else state["parsed_input"]["question"]
+    job_document = state["selected_job"] if state["selected_job"] else "정보 없음"
     
     try:
         verification_result = verify_job_chain.invoke({
             "user_profile": user_profile,
             "question": question,
-            "job_documents": job_documents
+            "job_document": job_document
         }).content
-        result = json.loads(verification_result)
-        is_relevant = result.get("is_relevant", False)
-        revised_query = result.get("revised_query", "")
-        
-        logger.info("Verification result: is_relevant=%s, revised_query=%s", is_relevant, revised_query)
-        
+        # 결과가 문자열 'true'/'false' 또는 bool로만 오도록 강제
+        if isinstance(verification_result, str):
+            result_str = verification_result.strip().lower()
+            if result_str in ["true", "false"]:
+                is_relevant = result_str == "true"
+            else:
+                # 예외: JSON 등 다른 형식이 오면 파싱 시도
+                try:
+                    result_json = json.loads(verification_result)
+                    is_relevant = bool(result_json.get("is_relevant", False))
+                except Exception:
+                    is_relevant = False
+        else:
+            is_relevant = bool(verification_result)
+        state["is_relevant"] = is_relevant
+        logger.info("Verification result: is_relevant=%s", is_relevant)
         if not is_relevant:
             state["retry_count"] += 1
-            state["revised_query"] = revised_query
+            try:
+                revised_result = question_generation_chain.invoke({"question": question})
+                state["revised_query"] = revised_result.content if hasattr(revised_result, "content") else revised_result
+            except Exception as e:
+                logger.error("Failed to generate revised_query: %s", str(e))
+                state["revised_query"] = ""
         else:
             state["revised_query"] = ""
             state["retry_count"] = 0
-    
     except Exception as e:
         logger.error("Verification error: %s", str(e))
         state["revised_query"] = ""
         state["retry_count"] = 0
-    
     return state
 
 @tool
-@traceable(name="get_company_info_tool")
-def get_company_info_tool(state_or_params: Union[Dict[str, Any], str]) -> Dict[str, Any]:
-    """회사 정보 조회."""
+@traceable(name="search_company_info_tool")
+def search_company_info_tool(state_or_params: Union[Dict[str, Any], str]) -> Dict[str, Any]:
+    """선택된 회사에 대한 사용자 질문을 웹에서 검색 (Tavily 활용)."""
     # 입력 처리
     if isinstance(state_or_params, str):
         try:
@@ -268,101 +313,45 @@ def get_company_info_tool(state_or_params: Union[Dict[str, Any], str]) -> Dict[s
     
     # state가 아닌 경우 이전 단계의 state 가져오기
     if not isinstance(state_or_params, dict) or "parsed_input" not in state_or_params:
-        logger.warning("Invalid state provided to get_company_info_tool: %s", state_or_params)
-        return {"error": "회사 정보 조회를 위한 유효한 상태가 제공되지 않았습니다."}
+        logger.warning("Invalid state provided to search_company_info_tool: %s", state_or_params)
+        return {"error": "회사 정보 검색을 위한 유효한 상태가 제공되지 않았습니다."}
     
     state = state_or_params
     
-    if "selected_job" not in state or state["selected_job"] is None:
+    if "selected_job" not in state or not state["selected_job"]:
         logger.warning("No selected_job in state for company info retrieval")
-        state["company_info"] = "선택된 직무 정보가 없어 회사 정보를 조회할 수 없습니다."
+        state["search_result"] = "선택된 직무 정보가 없어 회사 정보를 검색할 수 없습니다."
         return state
     
     try:
-        # 선택된 직무에서 회사명 추출
-        company_name = state["selected_job"].metadata.get("company_name", "정보 없음") if hasattr(state["selected_job"], "metadata") else "정보 없음"
+        # selected_job(채용공고 원본 텍스트)에서 회사 이름 파싱
+        selected_job_text = state["selected_job"]
+        parsed_job = _parse_job_posting(selected_job_text)
+        company_name = parsed_job.get("회사", "")
         
-        # 회사 정보 포함된 내용 추출
-        page_content = state["selected_job"].page_content if hasattr(state["selected_job"], "page_content") else ""
-        
-        # [회사 소개] 섹션 추출 (없는 경우 포지션 상세 사용)
-        company_intro_match = re.search(r"\[회사 소개\]\s*(.*?)(?=\[|$)", page_content, re.DOTALL)
-        if company_intro_match:
-            company_data = company_intro_match.group(1).strip()
-        else:
-            # 포지션 상세 섹션 추출
-            position_detail_match = re.search(r"포지션 상세:\s*(.*?)(?=주요 업무:|$)", page_content, re.DOTALL)
-            if position_detail_match:
-                company_data = position_detail_match.group(1).strip()
-            else:
-                logger.warning("No [회사 소개] found in page_content: %s", page_content)
-                company_data = f"회사명: {company_name}\n{page_content}"
-        
-        # LLM 체인으로 회사 정보 요약
-        state["company_info"] = company_chain.invoke({"company_data": company_data}).content
-        
-    except Exception as e:
-        logger.error("Company info retrieval error: %s", str(e))
-        state["company_info"] = f"회사 정보 조회 오류: {str(e)}"
-    
-    return state
+        if not company_name:
+            logger.warning("Could not parse company name from selected_job text.")
+            state["search_result"] = "채용 공고에서 회사 이름을 찾을 수 없어 검색에 실패했습니다."
+            return state
 
-@tool
-@traceable(name="get_salary_info_tool")
-def get_salary_info_tool(state_or_params: Union[Dict[str, Any], str]) -> Dict[str, Any]:
-    """급여 정보 조회 (웹 검색 활용)."""
-    # 입력 처리
-    if isinstance(state_or_params, str):
-        try:
-            state_or_params = json.loads(state_or_params)
-        except:
-            try:
-                state_or_params = eval(state_or_params)
-            except:
-                pass
-    
-    # state가 아닌 경우 이전 단계의 state 가져오기
-    if not isinstance(state_or_params, dict) or "parsed_input" not in state_or_params:
-        logger.warning("Invalid state provided to get_salary_info_tool: %s", state_or_params)
-        return {"error": "급여 정보 조회를 위한 유효한 상태가 제공되지 않았습니다."}
-    
-    state = state_or_params
-    
-    if "selected_job" not in state or state["selected_job"] is None:
-        logger.warning("No selected_job in state for salary info retrieval")
-        state["salary_info"] = "선택된 직무 정보가 없어 급여 정보를 조회할 수 없습니다."
-        return state
-    
-    try:
-        # 선택된 직무에서 직무명과 회사명 추출
-        job_name = state["selected_job"].metadata.get("job_name", "정보 없음") if hasattr(state["selected_job"], "metadata") else "정보 없음"
-        company_name = state["selected_job"].metadata.get("company_name", "정보 없음") if hasattr(state["selected_job"], "metadata") else "정보 없음"
-        
-        # 검색어 구성
-        search_query = f"{job_name} {company_name} salary Korea AI"
+        # 사용자 질문과 회사 이름으로 검색어 구성
+        user_question = state["parsed_input"].get("question", "")
+        search_query = f"{company_name} {user_question}"  ####### 수정 필요; 단순히 회사명 + 질문 형태임
         logger.info("Tavily search query: %s", search_query)
         
         # 웹 검색 실행
         search_results = tavily_tool.invoke(search_query)
-        search_results_text = "\n".join([f"{i+1}. {result['content']}" for i, result in enumerate(search_results)])
         
-        # 직무 정보 구성
-        job_data = (
-            f"직무: {job_name}\n"
-            f"회사: {company_name}\n"
-            f"분야: {state['parsed_input']['desired_job']}"
-        )
+        # 검색 결과를 하나의 텍스트로 정리
+        formatted_results = "\n".join([f"Source {i+1}:\n{result['content']}" for i, result in enumerate(search_results)])
         
-        # LLM 체인으로 급여 정보 요약
-        state["salary_info"] = salary_chain.invoke({
-            "job_data": job_data,
-            "search_results": search_results_text
-        }).content
+        # 결과를 state에 저장
+        state["search_result"] = formatted_results
         
     except Exception as e:
-        logger.error("Salary info retrieval error: %s", str(e))
-        state["salary_info"] = f"급여 정보 조회 오류: {str(e)}"
-    
+        logger.error("Company info retrieval (web search) error: %s", str(e))
+        state["search_result"] = f"웹 검색 중 오류가 발생했습니다: {str(e)}"
+        
     return state
 
 @tool
@@ -394,19 +383,20 @@ def get_preparation_advice_tool(state_or_params: Union[Dict[str, Any], str]) -> 
     try:
         # 사용자 프로필 구성
         user_profile = (
-            f"학력: {state['parsed_input']['education']}, "
-            f"경력: {state['parsed_input']['experience']}, "
-            f"희망 직무: {state['parsed_input']['desired_job']}, "
-            f"기술 스택: {', '.join(state['parsed_input']['tech_stack'])}"
-        )
+        f"학력: {state['parsed_input']['education']}, "
+        f"경력: {state['parsed_input']['experience']}, "
+        f"희망 직무: {state['parsed_input']['desired_job']}, "
+        f"기술 스택: {', '.join(state['parsed_input']['tech_stack'])}",
+        f"희망 근무지역: {state['parsed_input']['location']}",
+    )
         
         # 직무 정보 구성
-        job_data = state["selected_job"].page_content if hasattr(state["selected_job"], "page_content") else "정보 없음"
-        
+        selected_job_text = state["selected_job"]
+
         # LLM 체인으로 준비 조언 생성
         state["preparation_advice"] = advice_chain.invoke({
             "user_profile": user_profile,
-            "job_data": job_data
+            "job_data": selected_job_text
         }).content
         
     except Exception as e:
@@ -437,25 +427,50 @@ def summarize_results_tool(state_or_params: Union[Dict[str, Any], str]) -> Dict[
     state = state_or_params
     
     try:
-        # 대화 기록 문자열로 변환
-        chat_history_str = "\n".join([
-            f"User: {msg.get('user', '')}\nAssistant: {msg.get('assistant', '')}"
-            for msg in state.get("chat_history", [])
-        ])
+        # 최종 답변 생성
+        final_answer = final_answer_chain.invoke({
+            "selected_job": state.get("selected_job", ""),
+            "search_result": state.get("search_result", ""),
+            "preparation_advice": state.get("preparation_advice", "")
+        })
         
-        # LLM 체인으로 결과 요약
-        summary = summary_memory_chain.invoke({
-            "job_recommendations": state.get("job_recommendations", ""),
-            "company_info": state.get("company_info", ""),
-            "salary_info": state.get("salary_info", ""),
-            "preparation_advice": state.get("preparation_advice", ""),
-            "chat_history": chat_history_str
-        }).content
+        state["final_answer"] = final_answer
         
-        state["final_answer"] = summary
+        # conversation_turn이 6 이상일 때만 대화 내용 요약
+        if state.get("conversation_turn", 0) >= 6:
+            # 대화 기록 문자열로 변환
+            chat_history_str = "\n".join([
+                f"User: {msg.get('user', '')}\nAssistant: {msg.get('assistant', '')}"
+                for msg in state.get("chat_history", [])
+            ])
+            
+            # LLM 체인으로 대화 내용 요약
+            summary = summary_memory_chain.invoke({
+                "selected_job": state.get("selected_job", ""),
+                "search_result": state.get("search_result", ""),
+                "preparation_advice": state.get("preparation_advice", ""),
+                "chat_history": chat_history_str
+            }).content
+            
+            # 요약된 내용을 chat_history에 추가
+            state["chat_history"].append({
+                "user": "System",
+                "assistant": summary,
+                "timestamp": datetime.now().isoformat()
+            })
+            
+            # 이전 대화 내용 정리 (마지막 2개의 대화만 유지)
+            if len(state.get("chat_history", [])) > 2:
+                state["chat_history"] = state["chat_history"][-2:]
+                logger.info("Cleaned up chat history, keeping only last 2 conversations")
         
     except Exception as e:
         logger.error("Results summarization error: %s", str(e))
-        state["final_answer"] = f"결과 요약 오류: {str(e)}"
+        state["chat_history"].append({
+            "user": "System",
+            "assistant": f"결과 요약 오류: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        })
+        state["final_answer"] = f"최종 답변 생성 중 오류가 발생했습니다: {str(e)}"
     
     return state

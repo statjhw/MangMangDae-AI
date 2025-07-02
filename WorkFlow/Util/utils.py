@@ -1,7 +1,7 @@
 from typing import Dict, List, Any, Callable
 from langchain_core.runnables import RunnableSequence
 from config import get_llm
-from Template.prompts import job_recommendation_prompt, company_info_prompt, salary_info_prompt, preparation_advice_prompt, summary_memory_prompt, job_verification_prompt
+from Template.prompts import job_recommendation_prompt, preparation_advice_prompt, summary_memory_prompt, job_verification_prompt, final_answer_prompt, question_generation_prompt
 from langchain_community.chat_message_histories import ChatMessageHistory
 
 # 대화 메모리
@@ -28,11 +28,11 @@ class RunInvokeAdapter:
 
 # llm chain (각 체인에 run 메소드 제공)
 job_chain = RunInvokeAdapter(job_recommendation_prompt | llm)
-company_chain = RunInvokeAdapter(company_info_prompt | llm)
-salary_chain = RunInvokeAdapter(salary_info_prompt | llm)
 advice_chain = RunInvokeAdapter(preparation_advice_prompt | llm)
 verify_job_chain = RunInvokeAdapter(job_verification_prompt | llm)
+final_answer_chain = RunInvokeAdapter(final_answer_prompt | llm)
 summary_memory_chain = RunInvokeAdapter(summary_memory_prompt | llm)
+question_generation_chain = RunInvokeAdapter(question_generation_prompt | llm)
 
 # Graph 상태 타입 정의
 class GraphState(Dict):

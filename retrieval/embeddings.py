@@ -17,3 +17,14 @@ def get_vector_store():
     index = get_pinecone()
     return PineconeVectorStore(index=index, embedding=embeddings)
 
+def retrieve(query: str, top_k: int = 5):
+    embeddings = get_embeddings()
+    query_vector = embeddings.embed_query(query)
+
+    index = get_pinecone()
+    results = index.query(vector=query_vector, top_k=top_k, include_values=False, include_metadata=True)
+
+    distances = [x['score'] for x in results['matches']]
+    meta_data_li = [x['metadata'] for x in results['matches']]
+    text_data_li = [x['text'] for x in meta_data_li]
+    return distances, text_data_li
