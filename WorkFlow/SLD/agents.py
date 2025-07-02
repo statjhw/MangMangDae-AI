@@ -3,13 +3,11 @@ import logging
 import os
 from dotenv import load_dotenv
 from langgraph.graph import StateGraph, END
-from langchain_core.runnables import RunnablePassthrough
+
 from langsmith import Client, traceable
-from langsmith.run_helpers import get_run_tree_context
-from config import get_llm
 from WorkFlow.SLD.tools import (
     parse_input_tool, recommend_jobs_tool, verify_job_relevance_tool, 
-    get_company_info_tool, get_salary_info_tool, get_preparation_advice_tool, 
+    search_company_info_tool, get_preparation_advice_tool, 
     summarize_results_tool
 )
 
@@ -39,6 +37,7 @@ class GraphState(TypedDict, total=False):
     final_answer: str
     retry_count: int
     revised_query: str
+    is_relevant: bool
 
 # 노드 함수 정의 - 각 도구를 래핑
 @traceable(name="parse_input_node")
@@ -66,14 +65,8 @@ def verify_job_relevance(state: GraphState) -> GraphState:
 
 @traceable(name="get_company_info_node")
 def get_company_info(state: GraphState) -> GraphState:
-    """회사 정보 조회 노드"""
-    result = get_company_info_tool.func(state)
-    return result
-
-@traceable(name="get_salary_info_node")
-def get_salary_info(state: GraphState) -> GraphState:
-    """급여 정보 조회 노드"""
-    result = get_salary_info_tool.func(state)
+    """회사 정보 검색 노드 (웹 검색)"""
+    result = search_company_info_tool.func(state)
     return result
 
 @traceable(name="get_preparation_advice_node")
@@ -92,7 +85,11 @@ def summarize_results(state: GraphState) -> GraphState:
 @traceable(name="should_retry_edge")
 def should_retry(state: GraphState) -> str:
     """재검색 필요 여부 결정"""
-    if state.get("retry_count", 0) > 0 and state.get("retry_count", 0) < 3 and state.get("revised_query"):
+    if (
+        state.get("retry_count", 0) > 0 and
+        state.get("retry_count", 0) < 2 and
+        state.get("is_relevant") is False
+    ):
         logger.info(f"Retrying with revised query: {state.get('revised_query')}")
         return "recommend_jobs"
     return "get_company_info"
@@ -109,7 +106,6 @@ def build_workflow_graph() -> StateGraph:
     workflow.add_node("recommend_jobs", recommend_jobs)
     workflow.add_node("verify_job_relevance", verify_job_relevance)
     workflow.add_node("get_company_info", get_company_info)
-    workflow.add_node("get_salary_info", get_salary_info)
     workflow.add_node("get_preparation_advice", get_preparation_advice)
     workflow.add_node("summarize_results", summarize_results)
     
@@ -127,8 +123,7 @@ def build_workflow_graph() -> StateGraph:
             "get_company_info": "get_company_info"
         }
     )
-    workflow.add_edge("get_company_info", "get_salary_info")
-    workflow.add_edge("get_salary_info", "get_preparation_advice")
+    workflow.add_edge("get_company_info", "get_preparation_advice")
     workflow.add_edge("get_preparation_advice", "summarize_results")
     workflow.add_edge("summarize_results", END)
     

@@ -19,11 +19,12 @@ os.environ["LANGCHAIN_ENDPOINT"] = "https://api.smith.langchain.com"
 def invoke_workflow():
     """LangGraph 기반으로 워크플로우 실행."""
     user_input = {
-        "candidate_major": "컴퓨터 과학",
-        "candidate_interest": "AI 엔지니어",
-        "candidate_career": "신입",
-        "candidate_tech_stack": ["Python", "TensorFlow", "PyTorch"],
-        "candidate_question": "프롬프트 엔지니어링 관련 직무는 뭐가 있을까?"
+        "candidate_major": "통계학과 및 수학과",
+        "candidate_interest": "수학과 교수",
+        "candidate_career": "수학과 박사 졸업",
+        "candidate_tech_stack": ["Latex", "위상수학", "대수학", "해석학", "미적분학", "확률론"],
+        "candidate_location": "서울",
+        "candidate_question": "현재 수학과 박사 졸업했고, 수학과 박사를 원하는 회사가 있을까?"
     }
     
     try:
@@ -45,6 +46,8 @@ def invoke_workflow():
         print("\n=== LangSmith 추적 정보 ===")
         print(f"프로젝트: {os.getenv('LANGSMITH_PROJECT', 'job_advisor')}")
         print("자세한 실행 로그는 LangSmith 대시보드에서 확인하세요: https://smith.langchain.com")
+
+        return result.get("final_answer", "결과 없음")
         
     except Exception as e:
         logger.error("Workflow error: %s", str(e))
