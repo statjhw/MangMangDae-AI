@@ -1,0 +1,30 @@
+{
+  "education": {
+    "level": "대학교 졸업",
+    "major": "전자공학",
+    "school": "ABC 고등학교"
+  },
+  "career": {
+    "years": 6,
+    "current_status": "재직중",
+    "job_category": "DevOps 엔지니어"
+  },
+  "skills": {
+    "tech_stack": [
+      "Jenkins",
+      "Terraform",
+      "AWS",
+      "Azure"
+    ],
+    "level": "중급"
+  },
+  "preferences": {
+    "desired_job": "DevOps 엔지니어",
+    "desired_location": [
+      "서울"
+    ],
+    "desired_salary": "3,915만원",
+    "work_type": "하이브리드"
+  },
+  "conversation": "전자공학 전공이고 Jenkins, AWS을 다룰 줄 아는데, DevOps 엔지니어로 일하고 싶어요. 어떤 회사들이 있나요?"
+}
