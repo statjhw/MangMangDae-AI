@@ -1,0 +1,31 @@
+{
+  "education": {
+    "level": "대학교 재학",
+    "major": "산업공학",
+    "school": "ABC 고등학교"
+  },
+  "career": {
+    "years": 6,
+    "current_status": "재직중",
+    "job_category": "데이터 엔지니어"
+  },
+  "skills": {
+    "tech_stack": [
+      "Python",
+      "TensorFlow",
+      "PyTorch",
+      "Pandas"
+    ],
+    "level": "중급"
+  },
+  "preferences": {
+    "desired_job": "데이터 엔지니어",
+    "desired_location": [
+      "대전",
+      "광주"
+    ],
+    "desired_salary": "3,825만원",
+    "work_type": "상주"
+  },
+  "conversation": "Python, TensorFlow 기술을 가진 6년차 데이터 엔지니어입니다. 대전 지역에서 이직하고 싶은데 조언해주세요."
+}

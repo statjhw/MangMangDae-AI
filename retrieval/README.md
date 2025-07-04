@@ -17,7 +17,7 @@
 ## 사용 예시
 ```python
 from Retrival.hybrid_retriever import ensemble_retriever
-
+python run_test.py ../fake/fake_user/user_01.json
 # 검색 실행
 results = ensemble_retriever(
     query="서울 지역 프론트엔드 개발자 채용",
@@ -29,3 +29,7 @@ results = ensemble_retriever(
 - Dense와 Sparse 검색 결과의 앙상블
 - 검색 결과 캐싱으로 성능 최적화
 - Cross-Encoder 기반 정확한 순위 조정 
+
+
+# python build_bm25_index.py
+# → bm25.pkl 생성
