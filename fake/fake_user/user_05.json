@@ -1,0 +1,32 @@
+{
+  "education": {
+    "level": "대학교 졸업",
+    "major": "소프트웨어공학",
+    "school": "ABC 고등학교"
+  },
+  "career": {
+    "years": 6,
+    "current_status": "구직중",
+    "job_category": "모바일 앱 개발자"
+  },
+  "skills": {
+    "tech_stack": [
+      "React Native",
+      "Swift",
+      "Flutter",
+      "Android SDK",
+      "iOS SDK",
+      "Kotlin"
+    ],
+    "level": "중급"
+  },
+  "preferences": {
+    "desired_job": "모바일 앱 개발자",
+    "desired_location": [
+      "제주"
+    ],
+    "desired_salary": "11,205만원",
+    "work_type": "리모트"
+  },
+  "conversation": "제주에 있는 모바일 앱 개발자 포지션 중에서 리모트 근무가 가능한 곳 추천해주세요."
+}
