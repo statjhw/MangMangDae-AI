@@ -1,11 +1,6 @@
 from typing import Dict, List, Any, Callable
-from langchain_core.runnables import RunnableSequence
 from config import get_llm
-from Template.prompts import job_recommendation_prompt, preparation_advice_prompt, summary_memory_prompt, job_verification_prompt, final_answer_prompt, question_generation_prompt
-from langchain_community.chat_message_histories import ChatMessageHistory
-
-# 대화 메모리
-memory = ChatMessageHistory()
+from Template.prompts import preparation_advice_prompt, summary_memory_prompt, final_answer_prompt, question_generation_prompt, intent_analysis_prompt, contextual_qa_prompt, reformulate_query_prompt
 
 # llm 객체를 함수로 받아옴
 llm = get_llm()
@@ -27,12 +22,15 @@ class RunInvokeAdapter:
         return self.runnable.invoke({"input": data})
 
 # llm chain (각 체인에 run 메소드 제공)
-job_chain = RunInvokeAdapter(job_recommendation_prompt | llm)
+#job_chain = RunInvokeAdapter(job_recommendation_prompt | llm)
 advice_chain = RunInvokeAdapter(preparation_advice_prompt | llm)
-verify_job_chain = RunInvokeAdapter(job_verification_prompt | llm)
+#verify_job_chain = RunInvokeAdapter(job_verification_prompt | llm)
 final_answer_chain = RunInvokeAdapter(final_answer_prompt | llm)
 summary_memory_chain = RunInvokeAdapter(summary_memory_prompt | llm)
 question_generation_chain = RunInvokeAdapter(question_generation_prompt | llm)
+intent_analysis_chain = RunInvokeAdapter(intent_analysis_prompt | llm)
+contextual_qa_prompt_chain =  RunInvokeAdapter(contextual_qa_prompt | llm)
+reformulate_query_chain = RunInvokeAdapter(reformulate_query_prompt | llm)
 
 # Graph 상태 타입 정의
 class GraphState(Dict):
