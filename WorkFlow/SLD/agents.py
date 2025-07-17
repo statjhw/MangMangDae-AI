@@ -158,12 +158,6 @@ def recommend_jobs(state: GraphState) -> GraphState:
     result = recommend_jobs_tool.func(state)  # .func를 사용하여 원본 함수에 직접 접근
     return {**state, **result}
 
-# @traceable(name="verify_job_relevance_node")
-# def verify_job_relevance(state: GraphState) -> GraphState:
-#     """직무 적합성 검증 노드"""
-#     result = verify_job_relevance_tool.func(state)
-#     return {**state, **result}
-
 @traceable(name="get_company_info_node")
 def get_company_info(state: GraphState) -> GraphState:
     """회사 정보 검색 노드 (웹 검색)"""
@@ -187,20 +181,6 @@ def record_history(state: GraphState) -> GraphState:
     """대화 기록 및 저장 노드"""
     # 이 도구는 state 전체를 수정하고 반환하므로, 병합 없이 그대로 반환
     return record_history_tool.func(state)
-
-
-# 에지 함수 - 조건에 따라 다음 노드 결정
-# @traceable(name="should_retry_edge")
-# def should_retry(state: GraphState) -> str:
-#     """재검색 필요 여부 결정"""
-#     if (
-#         state.get("retry_count", 0) > 0 and
-#         state.get("retry_count", 0) < 2 and
-#         state.get("is_relevant") is False
-#     ):
-#         logger.info(f"Retrying with revised query: {state.get('revised_query')}")
-#         return "recommend_jobs"
-#     return "get_company_info"
 
 # 워크플로우 그래프 빌드
 @traceable(name="build_workflow_graph")
@@ -259,20 +239,6 @@ def build_workflow_graph() -> StateGraph:
     # 모든 경로는 최종적으로 답변 생성 및 기록 후 종료
     workflow.add_edge("generate_final_answer", "record_history")
     workflow.add_edge("record_history", END)
-
-    # # 기존 심층 분석 경로
-    # workflow.add_edge("recommend_jobs", "verify_job_relevance")
-    # workflow.add_conditional_edges(
-    #     "verify_job_relevance",
-    #     should_retry,
-    #     {
-    #         "recommend_jobs": "recommend_jobs",
-    #         "get_company_info": "get_company_info"
-    #     }
-    # )
-    # workflow.add_edge("get_company_info", "get_preparation_advice")
-    # workflow.add_edge("get_preparation_advice", "final_answer")
-    
     # 그래프 컴파일
     return workflow.compile()
 
