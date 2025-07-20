@@ -3,6 +3,8 @@ from dotenv import load_dotenv
 from opensearchpy import OpenSearch, RequestsHttpConnection
 from requests_aws4auth import AWS4Auth
 import boto3
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from db.logger import setup_logger
 
 # 로거 설정
@@ -109,6 +111,12 @@ class OpenSearchDB:
             
         if mapping is None:
             mapping = {
+                "settings": {
+                    "index": {
+                        "knn": True,
+                        "knn.algo_param.ef_search": 512
+                    }
+                },
                 "mappings": {
                     "properties": {
                         "url": {"type": "keyword"},
@@ -130,11 +138,29 @@ class OpenSearchDB:
                         "hiring_process": {"type": "text", "analyzer": "standard"},
                         "tech_stack": {"type": "text", "analyzer": "standard"},
                         "created_at": {"type": "date", "format": "strict_date_optional_time||epoch_millis"},
-                        "updated_at": {"type": "date", "format": "strict_date_optional_time||epoch_millis"}
+                        "updated_at": {"type": "date", "format": "strict_date_optional_time||epoch_millis"},
+
+                        #임베딩 관련 필드들 추가
+                        "content_embedding": {
+                            "type": "knn_vector",
+                            "dimension": 1024,
+                            "method": {
+                                "name": "hnsw",
+                                "engine": "lucene",
+                                "parameters": {
+                                    "ef_construction": 108,
+                                    "m": 16
+                                }
+                            }
+                        },
+                        "preprocessed_content": {
+                            "type": "text",
+                            "analyzer": "standard"
                     }
                 }
             }
-        
+        }
+            
         try:
             # 먼저 연결 테스트
             if not self.test_connection():
@@ -156,7 +182,8 @@ class OpenSearchDB:
             if hasattr(e, 'info'):
                 logger.error(f"Error details: {e.info}")
             raise
-    
+
+
     def index_document(self, document, doc_id=None, index_name=None):
         """
         문서를 인덱스에 추가합니다.
@@ -296,4 +323,4 @@ class OpenSearchDB:
 
 if __name__ == "__main__":
     opensearch = OpenSearchDB()
-    opensearch.delete_index("wanted_jobs")
+    opensearch.create_index("wanted_job")

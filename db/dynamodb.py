@@ -71,3 +71,12 @@ class DynamoDB:
                 logger.debug(f"Yielding item: {item.get('url', 'N/A')} from paginated scan") # Assuming 'url' exists
                 yield item
         logger.info(f"Finished scan for DynamoDB table: {table_name}") 
+
+if __name__ == "__main__":
+    dynamodb = DynamoDB()
+    count = 0
+    for item in dynamodb.scan_items_generator("wanted_jobs"):
+        if count >= 1 : 
+            break
+        count += 1
+        print(item)
