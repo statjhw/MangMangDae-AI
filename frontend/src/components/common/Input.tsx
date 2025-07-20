@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { forwardRef, InputHTMLAttributes, useState } from 'react';
+import { forwardRef, InputHTMLAttributes, useState, useEffect } from 'react';
 import { clsx } from 'clsx';
 import { Eye, EyeOff, Search } from 'lucide-react';
 
@@ -31,11 +31,17 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [inputValue, setInputValue] = useState(props.value || '');
 
+  // 외부 value 변경 감지
+  useEffect(() => {
+    setInputValue(props.value || '');
+  }, [props.value]);
+
   const inputType = type === 'password' && showPassword ? 'text' : type;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputValue(e.target.value);
-    setShowSuggestions(suggestions.length > 0 && e.target.value.length > 0);
+    const newValue = e.target.value;
+    setInputValue(newValue);
+    setShowSuggestions(suggestions.length > 0 && newValue.length > 0);
     props.onChange?.(e);
   };
 
@@ -43,6 +49,14 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
     setInputValue(suggestion);
     setShowSuggestions(false);
     onSuggestionSelect?.(suggestion);
+    
+    // onChange도 호출하여 form 상태 업데이트
+    if (props.onChange) {
+      const mockEvent = {
+        target: { value: suggestion }
+      } as React.ChangeEvent<HTMLInputElement>;
+      props.onChange(mockEvent);
+    }
   };
 
   return (

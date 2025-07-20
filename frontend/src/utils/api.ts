@@ -47,17 +47,37 @@ export const getStatistics = async (userInfo: UserInfo): Promise<Statistics> => 
 };
 
 // 워크플로우 실행
-export const runWorkflow = async (userInfo: UserInfo, question: string): Promise<WorkflowResponse> => {
+export const runWorkflow = async (userInfo: UserInfo): Promise<WorkflowResponse> => {
   try {
-    const response = await api.post<ApiResponse<WorkflowResponse>>('/workflow', {
-      candidate_major: userInfo.education.major,
-      candidate_career: userInfo.career.hasExperience ? `${userInfo.career.yearsOfExperience}년` : '신입',
-      candidate_interest: userInfo.preferences.desiredJob,
-      candidate_question: question,
-    });
-    return response.data.data!;
-  } catch (error) {
+    console.log('Sending workflow request:', JSON.stringify(userInfo, null, 2));
+    
+    // 데이터 검증
+    console.log('Data validation:');
+    console.log('- candidate_major:', userInfo.candidate_major);
+    console.log('- candidate_career:', userInfo.candidate_career);
+    console.log('- candidate_interest:', userInfo.candidate_interest);
+    console.log('- candidate_location:', userInfo.candidate_location);
+    console.log('- candidate_tech_stack:', userInfo.candidate_tech_stack);
+    console.log('- candidate_question:', userInfo.candidate_question);
+    console.log('- candidate_salary:', userInfo.candidate_salary);
+    
+    const response = await api.post<WorkflowResponse>('/workflow', userInfo);
+    console.log('Workflow response:', response.data);
+    return response.data;
+  } catch (error: any) {
     console.error('Failed to run workflow:', error);
+    
+    // 422 에러의 경우 상세 정보 출력
+    if (error.response?.status === 422) {
+      console.error('Validation error details:', error.response.data);
+      if (error.response.data?.detail) {
+        console.error('Detailed validation errors:');
+        error.response.data.detail.forEach((err: any, index: number) => {
+          console.error(`${index + 1}. Field: ${err.loc?.join('.')} | Error: ${err.msg} | Input: ${err.input}`);
+        });
+      }
+    }
+    
     throw error;
   }
 };

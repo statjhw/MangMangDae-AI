@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { forwardRef, SelectHTMLAttributes, useState } from 'react';
+import { forwardRef, SelectHTMLAttributes, useState, useEffect } from 'react';
 import { clsx } from 'clsx';
 import { ChevronDown, Check } from 'lucide-react';
 
@@ -16,6 +16,7 @@ interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'onC
   placeholder?: string;
   onChange?: (value: string) => void;
   className?: string;
+  disabled?: boolean;
 }
 
 const Select = forwardRef<HTMLSelectElement, SelectProps>(({
@@ -27,14 +28,21 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(({
   onChange,
   className,
   value,
+  disabled = false,
   ...props
 }, ref) => {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedValue, setSelectedValue] = useState(value || '');
 
+  // 외부 value 변경 감지
+  useEffect(() => {
+    setSelectedValue(value || '');
+  }, [value]);
+
   const selectedOption = options.find(option => option.value === selectedValue);
 
   const handleSelect = (option: SelectOption) => {
+    if (disabled) return;
     setSelectedValue(option.value);
     setIsOpen(false);
     onChange?.(option.value);
@@ -54,14 +62,17 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(({
           className={clsx(
             'w-full px-4 py-3 border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-0',
             'flex items-center justify-between',
-            error 
-              ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
-              : 'border-secondary-300 focus:ring-primary-500 focus:border-primary-500',
+            disabled 
+              ? 'bg-secondary-100 border-secondary-200 text-secondary-400 cursor-not-allowed'
+              : error 
+                ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                : 'border-secondary-300 focus:ring-primary-500 focus:border-primary-500',
             className
           )}
-          onClick={() => setIsOpen(!isOpen)}
-          whileHover={{ scale: 1.01 }}
-          whileTap={{ scale: 0.99 }}
+          onClick={() => !disabled && setIsOpen(!isOpen)}
+          disabled={disabled}
+          whileHover={!disabled ? { scale: 1.01 } : {}}
+          whileTap={!disabled ? { scale: 0.99 } : {}}
         >
           <span className={selectedOption ? 'text-secondary-900' : 'text-secondary-400'}>
             {selectedOption ? selectedOption.label : placeholder}
@@ -75,7 +86,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(({
         </motion.button>
         
         {/* 드롭다운 메뉴 */}
-        {isOpen && (
+        {isOpen && !disabled && (
           <motion.div
             className="absolute z-10 w-full mt-1 bg-white border border-secondary-200 rounded-lg shadow-lg max-h-60 overflow-y-auto"
             initial={{ opacity: 0, y: -10 }}
@@ -126,6 +137,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(({
         value={selectedValue}
         onChange={(e) => handleSelect({ value: e.target.value, label: e.target.value })}
         className="sr-only"
+        disabled={disabled}
         {...props}
       >
         <option value="">{placeholder}</option>

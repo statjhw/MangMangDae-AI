@@ -2,65 +2,49 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Brain, TrendingUp, Users, Zap, ArrowRight, Star } from 'lucide-react';
 import UserInfoForm from '../components/features/UserInfoForm';
-import StatisticsSection from '../components/features/StatisticsSection';
-import ChatSection from '../components/features/ChatSection';
-import { UserInfo, Statistics } from '../types';
-import { getStatistics } from '../utils/api';
+import ResponseSection from '../components/features/ChatSection';
+import Button from '../components/common/Button';
+import { UserInfo } from '../types';
 import toast from 'react-hot-toast';
 
 const HomePage = () => {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
-  const [statistics, setStatistics] = useState<Statistics | null>(null);
-  const [isLoadingStats, setIsLoadingStats] = useState(false);
-  const [currentSection, setCurrentSection] = useState<'form' | 'stats' | 'chat'>('form');
+  const [currentSection, setCurrentSection] = useState<'form' | 'response'>('form');
+  const [isAnalysisStarted, setIsAnalysisStarted] = useState(false);
+  const [showResponseSection, setShowResponseSection] = useState(false);
 
-  const handleUserInfoSubmit = async (data: UserInfo) => {
+
+
+  const handleAnalysisStart = async (data: UserInfo) => {
     setUserInfo(data);
-    setIsLoadingStats(true);
-    setCurrentSection('stats');
-
-    try {
-      const stats = await getStatistics(data);
-      setStatistics(stats);
-      toast.success('통계 분석이 완료되었습니다!');
-    } catch (error) {
-      console.error('Failed to fetch statistics:', error);
-      toast.error('통계 데이터를 가져오는 중 오류가 발생했습니다.');
-      
-      // 임시 데이터로 대체
-      setStatistics({
-        jobPreferences: [
-          { job: '프론트엔드 개발자', percentage: 25 },
-          { job: '백엔드 개발자', percentage: 20 },
-          { job: 'UX 디자이너', percentage: 15 },
-          { job: '데이터 분석가', percentage: 12 },
-          { job: '마케터', percentage: 8 },
-        ],
-        salaryDistribution: [
-          { range: '2000-3000만원', count: 30 },
-          { range: '3000-4000만원', count: 25 },
-          { range: '4000-5000만원', count: 20 },
-          { range: '5000만원 이상', count: 15 },
-        ],
-        averageSalary: 3800,
-        locationRatio: [
-          { location: '서울특별시', ratio: 45 },
-          { location: '경기도', ratio: 25 },
-          { location: '부산광역시', ratio: 10 },
-          { location: '대구광역시', ratio: 8 },
-          { location: '기타', ratio: 12 },
-        ],
-      });
-    } finally {
-      setIsLoadingStats(false);
-    }
+    setIsAnalysisStarted(true);
+    setShowResponseSection(true);
+    toast.success('AI 분석을 시작합니다!');
+    
+    // 바로 응답 섹션으로 이동
+    setTimeout(() => {
+      scrollToSection('response');
+    }, 100);
   };
 
-  const scrollToSection = (section: 'form' | 'stats' | 'chat') => {
+  const scrollToSection = (section: 'form' | 'response') => {
     setCurrentSection(section);
+    if (section === 'response') {
+      setShowResponseSection(true);
+    }
     const element = document.getElementById(section);
     if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
+      if (section === 'response') {
+        // 응답 섹션으로는 즉시 이동
+        const elementTop = element.offsetTop;
+        window.scrollTo({
+          top: elementTop,
+          behavior: 'auto'
+        });
+      } else {
+        // 다른 섹션으로는 부드럽게 이동
+        element.scrollIntoView({ behavior: 'smooth' });
+      }
     }
   };
 
@@ -207,45 +191,17 @@ const HomePage = () => {
             </p>
           </motion.div>
 
-          <UserInfoForm onSubmit={handleUserInfoSubmit} />
+          <UserInfoForm onSubmit={handleAnalysisStart} />
         </div>
       </section>
 
-      {/* 통계 섹션 */}
-      <AnimatePresence>
-        {userInfo && (
-          <section id="stats" className="py-20 bg-white">
-            <StatisticsSection 
-              statistics={statistics!} 
-              loading={isLoadingStats} 
-            />
-            
-            {!isLoadingStats && statistics && (
-              <motion.div
-                className="text-center mt-12"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-              >
-                <Button
-                  onClick={() => scrollToSection('chat')}
-                  size="lg"
-                  className="inline-flex items-center space-x-2"
-                >
-                  <span>AI 상담사와 대화하기</span>
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </motion.div>
-            )}
-          </section>
-        )}
-      </AnimatePresence>
 
-      {/* 채팅 섹션 */}
+
+      {/* 응답 섹션 */}
       <AnimatePresence>
-        {userInfo && (
-          <section id="chat" className="py-20 bg-gradient-to-br from-primary-50 to-secondary-50">
-            <ChatSection userInfo={userInfo} />
+        {userInfo && isAnalysisStarted && showResponseSection && (
+          <section id="response" className="py-20 bg-gradient-to-br from-primary-50 to-secondary-50">
+            <ResponseSection userInfo={userInfo} />
           </section>
         )}
       </AnimatePresence>

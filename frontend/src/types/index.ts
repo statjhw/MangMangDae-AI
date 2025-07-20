@@ -1,5 +1,16 @@
-// 사용자 정보 타입
+// 사용자 정보 타입 (백엔드 API 호출용)
 export interface UserInfo {
+  candidate_major: string;
+  candidate_career: string;
+  candidate_interest: string;
+  candidate_location: string;
+  candidate_tech_stack: string[];
+  candidate_question: string;
+  candidate_salary: string;
+}
+
+// 폼 입력 타입
+export interface FormUserInfo {
   education: {
     status: string;
     major: string;
