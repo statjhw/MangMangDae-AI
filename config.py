@@ -6,7 +6,7 @@ from langchain_community.tools.tavily_search import TavilySearchResults
 from langsmith import Client
 
 # 환경 변수 로드
-load_dotenv()
+load_dotenv(override=True)
 
 def get_config():
     """환경 변수를 가져오는 함수"""
@@ -45,7 +45,7 @@ _langsmith_client = None
 def get_llm():
     global _llm
     if _llm is None:
-        _llm = ChatOpenAI(model_name="gpt-3.5-turbo")
+        _llm = ChatOpenAI(model_name="gpt-4o-mini")
     return _llm
 
 def get_pinecone_client():

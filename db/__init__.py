@@ -8,9 +8,9 @@ This package contains database connection and operation classes:
 - OpenSearch: OpenSearch operations
 """
 
-from .dynamodb import DynamoDB
-from .pinecone_db import Pinecone
-from .postgres import Postgres
+#from .dynamodb import DynamoDB
+#from .pinecone_db import Pinecone
+#from .postgres import Postgres
 from .opensearch import OpenSearchDB
 
-__all__ = ['DynamoDB', 'Pinecone', 'Postgres', 'OpenSearchDB'] 
+#__all__ = ['DynamoDB', 'Pinecone', 'Postgres', 'OpenSearchDB'] 
