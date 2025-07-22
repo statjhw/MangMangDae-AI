@@ -8,7 +8,8 @@ from langsmith import Client, traceable
 from WorkFlow.SLD.tools import (
     search_company_info_tool, get_preparation_advice_tool, 
     record_history_tool, generate_final_answer_tool, analyze_intent_tool, contextual_qa_tool,
-    present_candidates_tool, load_selected_job_tool, recommend_jobs_tool, reformulate_query_tool
+    present_candidates_tool, load_selected_job_tool, recommend_jobs_tool, reformulate_query_tool,
+    research_for_advice_tool
 )
 
 # 로깅 설정
@@ -28,7 +29,6 @@ class GraphState(TypedDict, total=False):
     # --- 핵심 입력 및 사용자 정보 ---
     user_input: Dict[str, Any]
     user_id: int
-    parsed_input: Dict[str, Any]
     
     # --- 대화 흐름 및 맥락 관리 ---
     intent: str
@@ -38,10 +38,13 @@ class GraphState(TypedDict, total=False):
 
     # --- 채용 공고 관련 상태 ---
     job_list: List[Dict[str, Any]] # 추천된 공고 목록
-    selected_job: Any               # 사용자가 선택한 특정 공고
+    selected_job: Any     
+    selected_job_data: Dict[str, Any] # 사용자가 선택한 특정 공고
 
     # --- 심층 분석 정보 ---
     search_result: str       # 웹 검색을 통해 얻은 회사 정보
+    interview_questions_context: str
+    company_culture_context: str
     preparation_advice: str # 면접 및 준비 조언
 
     # --- 최종 결과 ---
@@ -71,21 +74,8 @@ def parse_input(state: GraphState) -> GraphState:
         "timestamp": datetime.now().isoformat()
     })
 
-    # --- parsed_input 생성 ---
-    parsed_data = {
-        "education": user_input.get("candidate_major"),
-        "experience": user_input.get("candidate_career"),
-        "desired_job": user_input.get("candidate_interest"),
-        "tech_stack": user_input.get("candidate_tech_stack", []),
-        "location": user_input.get("candidate_location"),
-        "question": user_input.get("candidate_question")
-    }
-
-    logger.info("Parsed input: %s", parsed_data)
-
     # --- 변경된 부분만 포함된 딕셔너리 생성 ---
     updates = {
-        "parsed_input": parsed_data,
         "chat_history": chat_history,
         "conversation_turn": conversation_turn,
     }
@@ -164,6 +154,12 @@ def get_company_info(state: GraphState) -> GraphState:
     result = search_company_info_tool.func(state)
     return {**state, **result}
 
+@traceable(name="research_for_advice_node")
+def research_for_advice(state: GraphState) -> GraphState:
+    """면접 조언 생성을 위해, 선택된 회사/직무에 대한 웹 검색"""
+    result = research_for_advice_tool.func(state)
+    return {**state, **result}
+
 @traceable(name="get_preparation_advice_node")
 def get_preparation_advice(state: GraphState) -> GraphState:
     """준비 조언 제공 노드"""
@@ -198,6 +194,7 @@ def build_workflow_graph() -> StateGraph:
     workflow.add_node("reformulate_query", reformulate_query)
     #workflow.add_node("verify_job_relevance", verify_job_relevance)
     workflow.add_node("get_company_info", get_company_info)
+    workflow.add_node("research_for_advice", research_for_advice)
     workflow.add_node("get_preparation_advice", get_preparation_advice)
     workflow.add_node("contextual_qa", contextual_qa)
     workflow.add_node("generate_final_answer", generate_final_answer) 
@@ -227,8 +224,9 @@ def build_workflow_graph() -> StateGraph:
     
     # 2. 선택 후 심층 분석 경로: load -> get_company_info -> ... -> generate_final_answer 
     workflow.add_edge("load_selected_job", "get_company_info")
-    workflow.add_edge("get_company_info", "get_preparation_advice")
-    workflow.add_edge("get_preparation_advice", "generate_final_answer")
+    workflow.add_edge("get_company_info", "research_for_advice") # get_company_info 다음에 research 추가
+    workflow.add_edge("research_for_advice", "get_preparation_advice") # research 결과를 advice 생성에 사용
+    workflow.add_edge("get_preparation_advice", "generate_final_answer") # 최종적으로 종합
 
     # 2.1 다른 회사를 찾고 심층분석
     workflow.add_edge("reformulate_query", "recommend_jobs")

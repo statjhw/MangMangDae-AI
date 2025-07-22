@@ -1,14 +1,31 @@
 from langchain.prompts import PromptTemplate
 
-# 심층분석 경로에서 조언 생성하는 프롬프트
-preparation_advice_prompt = PromptTemplate(
-    input_variables=["user_profile", "job_data"],
-    template="""사용자 프로필: {user_profile}
 
-직무 정보 (직무, 회사, 주요 업무, 자격 요건, 기술 스택, 혜택 및 복지, 희망 근무지, 채용 과정 등 포함):
+# 조언 생성을 위한 프롬프트
+actionable_advice_prompt = PromptTemplate(
+    input_variables=["user_profile", "job_data", "interview_questions_context", "company_culture_context"],
+    template="""당신은 지원자의 역량과 목표 직무를 분석하여, 맞춤형 합격 전략을 제시하는 전문 커리어 코치입니다.
+
+[지원자 프로필]
+{user_profile}
+
+[목표 직무 정보]
 {job_data}
 
-위 정보를 바탕으로 직무 준비 조언을 제공하세요."""
+[웹 검색 정보]
+1. 관련 면접 질문: {interview_questions_context}
+2. 회사 기술 문화: {company_culture_context}
+
+[지시사항]
+위 모든 정보를 종합하여, 지원자가 이 직무에 합격하기 위한 구체적이고 실행 가능한 '준비 계획'을 단계별로 작성해주세요.
+
+1.  **역량 차이 분석 (Gap Analysis)**: 지원자의 기술 스택과 직무의 자격 요건/우대 사항을 비교하여, 보충해야 할 핵심 역량 2~3가지를 명확히 짚어주세요.
+2.  **학습 로드맵 제시**: 위에서 분석한 부족한 역량을 채우기 위한 구체적인 학습 계획을 제안해주세요. (예: 특정 기술에 대한 온라인 강의 추천, 관련 서적, 토이 프로젝트 아이디어 등)
+3.  **면접 준비 전략**: 검색된 [면접 질문]과 [회사 문화]를 바탕으로, 예상 질문에 대한 답변 방향과 지원자의 강점을 어필할 수 있는 방법을 조언해주세요. 주어진 [웹 검색 정보]에서 반드시 구체적인 사례(예: 압박 면접, 특정 질문 유형)를 직접 인용하여, 이에 대한 대비책을 제시해주세요
+4.  **최종 어필 포인트**: 지원자의 경험과 회사의 특징을 연결하여, "왜 내가 이 회사에 적합한 인재인가"를 보여줄 수 있는 최종 어필 포인트를 정리해주세요.
+
+답변은 친절하고 전문적인 어조로 작성해주세요.
+"""
 )
 
 # llm에 이전 대화내용을 요약해서 전달하기 위해 요약본을 생성하는 프롬프트
@@ -123,5 +140,24 @@ reformulate_query_prompt = PromptTemplate(
 예시 2: 마지막 요청이 "그럼 이번엔 판교로"라면, 이전 맥락과 조합하여 "판교 QA 엔지니어"를 생성합니다.
 
 [생성된 검색어]:
+"""
+)
+
+
+web_search_planner_prompt = PromptTemplate(
+    input_variables=["company_context", "question"],
+    template="""당신은 사용자의 질문에 답변하기 위해 추가 정보가 필요한지 판단하는 AI입니다.
+
+[제공된 정보 (채용 공고)]
+{company_context}
+
+[사용자 질문]
+{question}
+
+[지시사항]
+위 [사용자 질문]에 답변하기 위해, 주어진 [제공된 정보]만으로 충분합니까? 아니면 외부 웹 검색이 필요합니까?
+'필요함' 또는 '필요 없음' 이 두 단어 중 하나로만 대답해주세요. 다른 설명은 절대 추가하지 마세요.
+
+판단:
 """
 )

@@ -4,8 +4,9 @@ import json
 import os
 from langchain_core.tools import tool
 from langsmith import traceable
-from WorkFlow.Util.utils import advice_chain, summary_memory_chain, final_answer_chain, intent_analysis_chain, contextual_qa_prompt_chain, reformulate_query_chain
+from WorkFlow.Util.utils import advice_chain, summary_memory_chain, final_answer_chain, intent_analysis_chain, contextual_qa_prompt_chain, reformulate_query_chain, web_search_planner_chain
 from retrieval.embeddings import get_vector_store, retrieve
+from retrieval.bm25 import bm25_search, _format_hit_to_text
 from config import get_tavily_tool, RateLimitError
 import re
 
@@ -27,7 +28,7 @@ def analyze_intent_tool(state: Dict[str, Any]) -> Dict[str, str]:
     """대화 기록과 현재 질문을 바탕으로 사용자 의도 분석"""
     summary = state.get("summary")
     chat_history = state.get("chat_history", [])
-    question = state.get("parsed_input", {}).get("question", "")
+    question = state.get("user_input", {}).get("candidate_question", "")
     
     context_for_llm = ""
     # 요약본이 존재하면, 요약본을 컨텍스트로 사용
@@ -46,44 +47,19 @@ def analyze_intent_tool(state: Dict[str, Any]) -> Dict[str, str]:
 
     # 사용자가 불만족을 표하며 새로운 검색을 원할 경우, 이전 추천을 제외 목록에 추가
     if intent_result == 'new_search' and state.get('job_list'):
-        # 이전 턴에서 제시했던 후보 목록('job_list')에서 URL들을 추출
-        previous_urls = [job.get('document', '') for job in state.get('job_list', [])]
+        previous_ids = [job.get('id', '') for job in state.get('job_list', [])]
         
-        # 정규식으로 각 문서에서 URL만 뽑아냄
-        excluded_urls = []
-        for doc in previous_urls:
-            match = re.search(r"채용공고 URL:\s*(.*)", doc)
-            if match:
-                excluded_urls.append(match.group(1).strip())
-
-        # 기존 제외 목록에 새로운 URL들을 추가
-        current_excluded = state.get('excluded_jobs', [])
-        current_excluded.extend(excluded_urls)
+        current_excluded = state.get('excluded_ids', [])
+        current_excluded.extend(previous_ids)
         
-        # 중복을 제거하여 state 업데이트
-        state['excluded_jobs'] = list(set(current_excluded))
-        logger.info(f"Adding {len(excluded_urls)} jobs to the exclusion list for the next search.")
+        state['excluded_ids'] = list(set(current_excluded))
+        logger.info(f"Adding {len(previous_ids)} job IDs to the exclusion list.")
     
     elif intent_result == 'select_job':
         logger.info("Intent is 'select_job', proceeding to load the selected document.")
 
 
     return {"intent": intent_result}
-
-def _parse_job_posting(text):
-    """단일 채용 공고 문서(text)를 파싱해 딕셔너리로 반환하는 함수"""
-    data = {}
-
-    data["직무"] = re.search(r"직무:\s*(.*?)\n", text).group(1).strip() if re.search(r"직무:\s*(.*?)\n", text) else None
-    data["회사"] = re.search(r"회사:\s*(.*?)\n", text).group(1).strip() if re.search(r"회사:\s*(.*?)\n", text) else None
-    data["태그"] = re.search(r"태그:\s*(.*?)\n", text).group(1).split(", ") if re.search(r"태그:\s*(.*?)\n", text) else None
-    data["위치"] = re.search(r"위치:\s*(.*?)\n", text).group(1).strip() if re.search(r"위치:\s*(.*?)\n", text) else None
-    data["마감일"] = re.search(r"마감일:\s*(.*?)\n", text).group(1).strip() if re.search(r"마감일:\s*(.*?)\n", text) else None
-    data["자격 요건"] = re.search(r"3\. 자격([\s\S]*?)우대 사항:", text).group(1).strip() if re.search(r"3\. 자격([\s\S]*?)우대 사항:", text) else None
-    data["우대 사항"] = re.search(r"우대 사항:\n([\s\S]*?)혜택 및 복지:", text).group(1).strip() if re.search(r"우대 사항:\n([\s\S]*?)혜택 및 복지:", text) else None
-    data["혜택 및 복지"] = re.search(r"혜택 및 복지:\n([\s\S]*?)채용 과정:", text).group(1).strip() if re.search(r"혜택 및 복지:\n([\s\S]*?)채용 과정:", text) else None
-    data["채용 과정"] = re.search(r"채용 과정:\s*(.*?)\n", text).group(1).strip() if re.search(r"채용 과정:\s*(.*?)\n", text) else None
-    return data
 
 @tool
 @traceable(name="recommend_jobs_tool")
@@ -100,30 +76,35 @@ def recommend_jobs_tool(state: Union[Dict[str, Any], str]) -> Dict[str, Any]:
                 pass
     
     # state가 아닌 경우 이전 단계의 state 가져오기
-    if not isinstance(state, dict) or "parsed_input" not in state:
+    if not isinstance(state, dict) or "user_input" not in state:
         logger.warning("Invalid state provided to recommend_jobs_tool: %s", state)
         return {"error": "직무 추천을 위한 유효한 상태가 제공되지 않았습니다."}
 
-    user_profile = state.get("parsed_input", {})
+    user_profile = state.get("user_input", {})
 
-    base_query = user_profile.get("question", "")
-    query = f"[query] {base_query}" 
+    # base_query = user_profile.get("question", "")
+    # query = f"[query] {base_query}" 
     
     try:
-        doc_scores, doc_texts = retrieve(query, exclude_urls=state.get("excluded_jobs", []))
+        #doc_scores, doc_texts = retrieve(query, exclude_urls=state.get("excluded_jobs", []))
+        
+        doc_scores, doc_ids, doc_texts = bm25_search(
+            user_profile=user_profile,
+            exclude_ids=state.get("excluded_ids", [])
+        )
+
+
+
         if not doc_texts:
             return {"job_list": []}
-        
-        # LLM으로 하나를 선택하는 대신, 전체 후보 목록을 state에 저장
         candidate_jobs = []
-        for i, text in enumerate(doc_texts):
-            parsed_data = _parse_job_posting(text)
+        for i, doc_source in enumerate(doc_texts):
+            full_text_document = _format_hit_to_text(doc_source)
             candidate_jobs.append({
                 "index": i + 1,
-                "company": parsed_data.get("회사", "정보 없음"),
-                "title": parsed_data.get("직무", "정보 없음"),
-                "score": doc_scores[i],
-                "document": text
+                "id": doc_ids[i],
+                "source_data": doc_source,
+                "document": full_text_document
             })
         
         return {"job_list": candidate_jobs}
@@ -143,37 +124,30 @@ def present_candidates_tool(state: Dict[str, Any]) -> Dict[str, str]:
     
     response_lines = ["다음은 추천하는 채용 공고 목록입니다. 더 자세히 알아보고 싶은 공고의 번호를 알려주세요.\n"]
     for job in job_list:
-        # 각 문서의 전체 텍스트를 파싱하여 주요 정보 추출
-        print(job)
-        doc_text = job.get('document', '')
-        # _parse_job_posting이 None을 반환할 경우를 대비해 빈 dict로 처리
-        parsed_data = _parse_job_posting(doc_text) or {}
+        # [핵심] 더 이상 텍스트를 파싱하지 않고, 저장된 딕셔너리에서 직접 데이터를 가져옵니다.
+        source_data = job.get('source_data', {})
         
-        # 보여줄 정보 가공
-        company = parsed_data.get("회사", "정보 없음")
-        title = parsed_data.get("직무", "정보 없음")
-        location = parsed_data.get("위치", "정보 없음")
-        
-        # 핵심 태그 3개만 추출
-        tags = parsed_data.get("태그", [])
-        key_tags = f"🏷️ 핵심 태그: {' / '.join(tags[:3])}" if tags else ""
-        
-        # (수정된 부분) 자격 요건을 안전하게 가져와서 처리
-        summary = "" # summary 변수 초기화
-        qualifications_text = parsed_data.get("자격 요건")
+# print(f"제목: {document.get('title', '정보 없음')}")
+#             print(f"회사명: {document.get('company_name', '정보 없음')}")
+#             print(f"지역: {document.get('location', '정보 없음')}")
+#             print(f"직무: {document.get('title', '정보 없음')}")
+#             print(f"기술 스택 • 툴: {document.get('tech_stack', '정보 없음')}")
+#             print(f"자격요건: {document.get('qualifications', '정보 없음')}")
 
-        # qualifications_text가 실제 문자열일 때만 요약 생성
-        if qualifications_text and isinstance(qualifications_text, str):
-            first_line = qualifications_text.split('\n')[0].strip('- ')
-            if first_line: # 첫 줄이 비어있지 않다면
-                summary = f"✨ 주요 요건: {first_line}"
+#             print(f"주요 업무: {document.get('main_tasks', '정보 없음')}")
 
-        # 최종 출력 문자열 조합
+        company = source_data.get("company_name", "정보 없음")
+        title = source_data.get("title", "정보 없음")
+        location = source_data.get("location", "정보 없음")
+        qualifications = source_data.get("qualifications", [])
+
+        summary = ""
+        if qualifications and isinstance(qualifications, list):
+             summary = f"✨ 주요 요건: {qualifications[0]}"
+
         response_lines.append(f"**{job['index']}. {company} - {title}**")
         response_lines.append(f"📍 위치: {location}")
-        if key_tags:
-            response_lines.append(key_tags)
-        if summary: # summary에 내용이 있을 때만 추가
+        if summary:
             response_lines.append(summary)
         response_lines.append("-" * 20)
     
@@ -184,34 +158,44 @@ def present_candidates_tool(state: Dict[str, Any]) -> Dict[str, str]:
 @tool
 @traceable(name="load_selected_job_tool")
 def load_selected_job_tool(state: Dict[str, Any]) -> Dict[str, Any]:
-    """사용자 입력에서 선택된 번호를 파싱하여 selected_job을 설정합니다."""
-    user_question = state.get("parsed_input", {}).get("question", "")
+    """사용자 입력에서 선택된 항목을 파싱하여, selected_job(텍스트)과 selected_job_data(딕셔너리)를 설정합니다."""
+    user_question = state.get("user_input", {}).get("candidate_question", "")
     job_list = state.get("job_list", [])
     
-    # "1번", "두번째", "2" 등 숫자 추출
+    if not job_list:
+        return {"final_answer": "오류: 비교할 추천 목록이 없습니다. 다시 검색해주세요."}
+
+    selected_job_info = None
+    # 숫자 기반 선택 먼저 시도
     match = re.search(r'\d+', user_question)
     if match:
         try:
             selected_index = int(match.group(0))
             for job in job_list:
                 if job.get('index') == selected_index:
-                    logger.info(f"Selected job by index: {selected_index}")
-                    return {"selected_job": job.get('document')}
+                    selected_job_info = job
+                    break
         except (ValueError, IndexError):
-            pass # 숫자를 찾았지만 유효하지 않은 경우, 아래의 이름 기반으로 넘어감
+            pass
 
-    # 2. 숫자가 없으면 회사명 기반 선택 시도
-    for job in job_list:
-        company_name = job.get('company')
-        # 사용자의 질문에 회사명이 포함되어 있는지 확인
-        if company_name and company_name in user_question:
-            logger.info(f"Selected job by company name: {company_name}")
-            return {"selected_job": job.get('document')}
+    # 숫자가 없으면 회사명 기반 선택 시도
+    if not selected_job_info:
+        for job in job_list:
+            company_name = job.get('source_data', {}).get('company_name')
+            if company_name and company_name in user_question:
+                selected_job_info = job
+                break
+    
+    # [핵심] 선택된 직무의 텍스트와 구조화된 데이터를 모두 반환
+    if selected_job_info:
+        logger.info(f"Selected job: {selected_job_info.get('source_data', {}).get('title')}")
+        return {
+            "selected_job": selected_job_info.get('document'),
+            "selected_job_data": selected_job_info.get('source_data')
+        }
             
     # 최종적으로 아무것도 찾지 못한 경우
-    logger.warning(f"Could not parse a valid selection from user input: '{user_question}'")
-    return {"selected_job": "오류: 유효한 공고를 선택하지 못했습니다. 목록에 있는 번호나 회사명을 포함하여 다시 말씀해주세요."}
-
+    return {"final_answer": "오류: 유효한 공고를 선택하지 못했습니다. 목록에 있는 번호나 회사명을 포함하여 다시 말씀해주세요."}
 
 @tool
 @traceable(name="reformulate_query_tool")
@@ -221,7 +205,7 @@ def reformulate_query_tool(state: Dict[str, Any]) -> Dict[str, str]:
     
     summary = state.get("summary", "")
     chat_history = state.get("chat_history", [])
-    question = state.get("parsed_input", {}).get("question", "") # 예: "다른거 찾아줘"
+    question = state.get("user_input", {}).get("candidate_question", "")
     
     # 요약본 또는 전체 기록을 컨텍스트로 사용
     context = summary if summary else "\n".join([f"User: {turn['user']}" for turn in chat_history])
@@ -235,17 +219,16 @@ def reformulate_query_tool(state: Dict[str, Any]) -> Dict[str, str]:
         
         logger.info(f"Reformulated query: '{new_query}'")
         
-        # 생성된 새 쿼리를 'parsed_input'의 question에 덮어써서 다음 노드로 전달
         # 이렇게 하면 recommend_jobs_tool은 별도 수정 없이 이 쿼리를 사용하게 됨
-        updated_parsed_input = state.get("parsed_input", {}).copy()
-        updated_parsed_input["question"] = new_query
+        updated_user_input = state.get("user_input", {}).copy()
+        updated_user_input["candidate_question"] = new_query
         
-        return {"parsed_input": updated_parsed_input}
+        return {"user_input": updated_user_input}
 
     except Exception as e:
         logger.error(f"Query reformulation error: {e}", exc_info=True)
         # 실패 시, 원래 질문을 그대로 사용
-        return {"parsed_input": state.get("parsed_input")}
+        return {"user_input": state.get("user_input")}
 
 
 @tool
@@ -253,17 +236,16 @@ def reformulate_query_tool(state: Dict[str, Any]) -> Dict[str, str]:
 def search_company_info_tool(state: Dict[str, Any]) -> Dict[str, str]:
     """회사 정보를 웹에서 검색하며, intent에 따라 검색어의 맥락을 동적으로 구성합니다."""
     
-    selected_job_text = state.get("selected_job")
-    if not selected_job_text:
-        return {"search_result": "분석할 직무가 선택되지 않았습니다."}
+    selected_job_data = state.get("selected_job_data")
+    if not selected_job_data:
+        return {"search_result": "분석할 직무 정보가 없습니다."}
     
     try:
-        parsed_job = _parse_job_posting(selected_job_text)
-        company_name = parsed_job.get("회사")
+        company_name = selected_job_data.get("company_name")
         if not company_name:
             return {"search_result": "공고에서 회사 이름을 찾지 못했습니다."}
 
-        # --- [핵심 수정] intent에 따라 질문의 출처를 다르게 설정 ---
+        # --- intent에 따라 질문의 출처를 다르게 설정 ---
         intent = state.get("intent")
         contextual_question = ""
 
@@ -276,10 +258,10 @@ def search_company_info_tool(state: Dict[str, Any]) -> Dict[str, str]:
                 logger.info(f"Using previous question for context: '{contextual_question}'")
             else:
                 # 예외적인 경우, 현재 턴의 질문을 fallback으로 사용 (거의 발생하지 않음)
-                contextual_question = state.get("parsed_input", {}).get("question", "")
+                contextual_question = state.get("user_input", {}).get("candidate_question", "")
         else:
             # 다른 모든 경우에는 현재 턴의 질문을 그대로 사용
-            contextual_question = state.get("parsed_input", {}).get("question", "")
+            contextual_question = state.get("user_input", {}).get("candidate_question", "")
         # --- 수정 끝 ---
 
         search_query = f"{company_name} {contextual_question}"
@@ -306,6 +288,63 @@ def search_company_info_tool(state: Dict[str, Any]) -> Dict[str, str]:
         logger.error(f"Error in search_company_info_tool: {e}", exc_info=True)
         return {"search_result": "웹 검색 중 오류가 발생했습니다."}
 
+
+@tool
+@traceable(name="research_for_advice_tool")
+def research_for_advice_tool(state: Dict[str, Any]) -> Dict[str, str]:
+    """면접 조언 생성을 위해, 선택된 회사/직무에 대한 웹 검색을 수행합니다."""
+    logger.info("Researching for actionable advice...")
+    
+    selected_job_data = state.get("selected_job_data", {})
+    company_name = selected_job_data.get("company_name", "")
+    job_title = selected_job_data.get("title", "")
+
+    if not company_name or not job_title:
+        return {
+            "interview_questions_context": "회사 또는 직무 정보가 없어 관련 면접 질문을 찾을 수 없습니다.",
+            "company_culture_context": "회사 또는 직무 정보가 없어 기업 문화 정보를 찾을 수 없습니다."
+        }
+
+    # 검색할 쿼리 목록 정의
+    queries = {
+        "interview": f'"{company_name}" "{job_title}" 면접 질문 후기',
+        "culture": f'"{company_name}" 기술 블로그 OR 개발 문화'
+    }
+    
+    # 최종 결과를 저장할 변수 초기화
+    interview_questions_context = "해당 직무에 대한 면접 질문 정보를 찾지 못했습니다."
+    company_culture_context = "해당 회사의 기술 문화에 대한 정보를 찾지 못했습니다."
+    
+    try:
+        for key, query in queries.items():
+            logger.info(f"Executing research query for '{key}': {query}")
+            # 각 쿼리에 대해 tavily_tool을 한 번씩 호출
+            search_results = tavily_tool.invoke({"query": query})
+            
+            if not isinstance(search_results, list):
+                search_results = [search_results]
+            
+            # content들을 하나의 문자열로 합침
+            content = "\n".join([str(res.get('content', '')) for res in search_results if res])
+            
+            # 키에 따라 적절한 변수에 결과 저장
+            if key == "interview" and content:
+                interview_questions_context = content[:1500] # 토큰 수 관리를 위해 글자 수 제한
+            elif key == "culture" and content:
+                company_culture_context = content[:1500]
+        
+        return {
+            "interview_questions_context": interview_questions_context,
+            "company_culture_context": company_culture_context
+        }
+
+    except Exception as e:
+        logger.error(f"Error during research for advice: {e}")
+        return {
+            "interview_questions_context": "면접 질문 검색 중 오류가 발생했습니다.",
+            "company_culture_context": "기업 문화 검색 중 오류가 발생했습니다."
+        }
+
 @tool
 @traceable(name="get_preparation_advice_tool")
 def get_preparation_advice_tool(state: Union[Dict[str, Any], str]) -> Dict[str, Any]:
@@ -321,7 +360,7 @@ def get_preparation_advice_tool(state: Union[Dict[str, Any], str]) -> Dict[str, 
                 pass
     
     # state가 아닌 경우 이전 단계의 state 가져오기
-    if not isinstance(state, dict) or "parsed_input" not in state:
+    if not isinstance(state, dict) or "user_input" not in state:
         logger.warning("Invalid state provided to get_preparation_advice_tool: %s", state)
         return {"error": "직무 준비 조언 제공을 위한 유효한 상태가 제공되지 않았습니다."}
     
@@ -332,53 +371,66 @@ def get_preparation_advice_tool(state: Union[Dict[str, Any], str]) -> Dict[str, 
         return state
     
     try:
+        user_input = state.get("user_input", {})
         # 사용자 프로필 구성
-        user_profile = (
-        f"학력: {state['parsed_input']['education']}, "
-        f"경력: {state['parsed_input']['experience']}, "
-        f"희망 직무: {state['parsed_input']['desired_job']}, "
-        f"기술 스택: {', '.join(state['parsed_input']['tech_stack'])}",
-        f"희망 근무지역: {state['parsed_input']['location']}",
-    )
-        
-        # 직무 정보 구성
-        selected_job_text = state["selected_job"]
+        user_profile_str = (
+            f"학력: {user_input.get('candidate_major', '')}, "
+            f"경력: {user_input.get('candidate_career', '')}, "
+            f"희망 직무: {user_input.get('candidate_interest', '')}, "
+            f"기술 스택: {', '.join(user_input.get('candidate_tech_stack', []))}, "
+            f"희망 근무지역: {user_input.get('candidate_location', '')}"
+        )
 
-        # LLM 체인으로 준비 조언 생성
-        state["preparation_advice"] = advice_chain.invoke({
-            "user_profile": user_profile,
-            "job_data": selected_job_text
+        advice_content = advice_chain.invoke({
+            "user_profile": user_profile_str,
+            "job_data": state.get("selected_job", ""),
+            "interview_questions_context": state.get("interview_questions_context", ""),
+            "company_culture_context": state.get("company_culture_context", "")
         }).content
+
+        return {"preparation_advice": advice_content}
         
     except Exception as e:
         logger.error("Preparation advice generation error: %s", str(e))
-        state["preparation_advice"] = f"준비 조언 생성 오류: {str(e)}"
-    
-    return state
+        return {"preparation_advice": f"준비 조언 생성 오류: {str(e)}"}
 
 @tool
 @traceable(name="contextual_qa_tool")
 def contextual_qa_tool(state: Dict[str, Any]) -> Dict[str, Any]:
     """선택된 직무와 웹 검색을 통해 후속 질문에 답변"""
-    question = state["parsed_input"]["question"]
+    question = state.get("user_input", {}).get("candidate_question", "")
     company_context = state.get("selected_job", "선택된 채용 공고가 없습니다.")
-    
-    # 웹 검색이 필요한 질문인지 판단하여 search_company_info_tool 재활용
-    web_search_needed_keywords = ["연봉", "뉴스", "평판", "최신", "이슈"]
     web_search_context = ""
-    if any(keyword in question for keyword in web_search_needed_keywords):
-        search_result_state = search_company_info_tool.func(state)
-        web_search_context = search_result_state.get("search_result", "")
 
-    # 답변 생성 체인 실행
-    answer = contextual_qa_prompt_chain.invoke({
-        "company_context": company_context,
-        "web_search_context": web_search_context,
-        "question": question
-    }).content
+    try:
+        logger.info("Planning step: Checking if web search is necessary.")
+        planner_decision = web_search_planner_chain.invoke({
+            "company_context": company_context,
+            "question": question
+        }).content.strip()
 
-    return {"final_answer": answer}
+        logger.info(f"Planner decision: '{planner_decision}'")
 
+        if "필요함" in planner_decision:
+            logger.info("Execution step: Web search is necessary. Calling search_company_info_tool.")
+            search_result_dict = search_company_info_tool(state)
+            web_search_context = search_result_dict.get("search_result", "")
+        else:
+            logger.info("Execution step: Web search is not necessary. Skipping.")
+
+        logger.info("Answering step: Generating final answer with available context.")
+        answer = contextual_qa_prompt_chain.invoke({
+            "company_context": company_context,
+            "web_search_context": web_search_context,
+            "question": question
+        }).content
+
+        return {"final_answer": answer}
+
+    except Exception as e:
+        logger.error(f"Error in contextual_qa_tool: {e}", exc_info=True)
+        return {"final_answer": "후속 질문에 답변하는 중 오류가 발생했습니다."}
+    
 
 @tool
 @traceable(name="generate_final_answer_tool")
@@ -400,18 +452,19 @@ def generate_final_answer_tool(state: Dict[str, Any]) -> Dict[str, str]:
         
         # 유형 3: 사용자가 특정 회사를 '선택'한 후, 모든 정보를 종합한 심층 분석 결과를 제공하는 경우
         elif intent == "select_job":
-            user_profile = (
-                f"학력: {state.get('parsed_input', {}).get('education', '')}, "
-                f"경력: {state.get('parsed_input', {}).get('experience', '')}, "
-                f"희망 직무: {state.get('parsed_input', {}).get('desired_job', '')}, "
-                f"기술 스택: {', '.join(state.get('parsed_input', {}).get('tech_stack', []))}, "
-                f"희망 근무지역: {state.get('parsed_input', {}).get('location', '')}"
+            user_input = state.get("user_input", {})
+            user_profile_str = (
+                f"학력: {user_input.get('candidate_major', '')}, "
+                f"경력: {user_input.get('candidate_career', '')}, "
+                f"희망 직무: {user_input.get('candidate_interest', '')}, "
+                f"기술 스택: {', '.join(user_input.get('candidate_tech_stack', []))}, "
+                f"희망 근무지역: {user_input.get('candidate_location', '')}"
             )
-            question = state.get("parsed_input", {}).get("question", "")
+            question = state.get("user_input", {}).get("question", "")
             
             # 모든 분석(회사정보, 준비조언 등)을 종합하여 최종 답변 생성
             final_answer = final_answer_chain.invoke({
-                "user_profile": user_profile,
+                "user_profile": user_profile_str,
                 "question": question,
                 "selected_job": state.get("selected_job", ""),
                 "search_result": state.get("search_result", ""),

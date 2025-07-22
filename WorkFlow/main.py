@@ -65,18 +65,18 @@ def start_chat_session():
     사용자와의 대화 세션을 시작하고 상태를 관리합니다.
     """
     # 사용자 ID는 실제 앱에서는 로그인 등을 통해 동적으로 할당됩니다.
-    user_id = 1
+    user_id = 10
     
     # 기본 사용자 프로필 정보
     base_user_info = {
         "user_id": user_id,
-        "candidate_major": "경영학",
-        "candidate_interest": "**서비스 기획자**",
+        "candidate_major": "통계학",
+        "candidate_interest": "데이터 엔지니어",
         "candidate_career": "5년",
         "candidate_tech_stack": [
-            "UX/UI 설계", "데이터 분석", "A/B 테스트", "프로젝트 관리"
+            "파이썬", "aws", "정보처리기사", "sql", "kafka", "spark"
         ],
-        "candidate_location": "**서울 강남**",
+        "candidate_location": "서울, 경기",
     }
 
     # 프로그램 시작 시, 저장된 이전 대화 상태를 불러옵니다.
