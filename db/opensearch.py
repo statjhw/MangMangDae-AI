@@ -323,4 +323,3 @@ class OpenSearchDB:
 
 if __name__ == "__main__":
     opensearch = OpenSearchDB()
-    opensearch.create_index("wanted_job")
