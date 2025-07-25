@@ -4,7 +4,13 @@ import json
 import logging
 import pickle
 from dotenv import load_dotenv
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from WorkFlow.SLD.agents import run_job_advisor_workflow
+
+from db.redis_connect import RedisConnect
+
+redis_connect = RedisConnect()
+
 
 # --- 기본 설정 ---
 # 로깅 설정
@@ -23,41 +29,6 @@ CHAT_JSON_DIR = "memory/chat_histories_json"
 os.makedirs(STATE_PKL_DIR, exist_ok=True)
 os.makedirs(CHAT_JSON_DIR, exist_ok=True)
 
-def save_state(user_id: int, state: dict):
-    """대화 상태를 pickle 파일로 저장합니다."""
-    state_file = os.path.join(STATE_PKL_DIR, f"state_{user_id}.pkl")
-    try:
-        with open(state_file, "wb") as f:
-            pickle.dump(state, f)
-        logger.info(f"State for user {user_id} saved to {state_file}")
-    except Exception as e:
-        logger.error(f"Failed to save state for user {user_id}: {e}")
-
-def save_chat_history_json(user_id: int, chat_history: list):
-    """대화 기록(list)을 JSON 파일로 저장합니다."""
-    history_file = os.path.join(CHAT_JSON_DIR, f"history_{user_id}.json")
-    try:
-        with open(history_file, "w", encoding="utf-8") as f:
-            json.dump(chat_history, f, ensure_ascii=False, indent=2)
-        logger.info(f"Chat history for user {user_id} saved to {history_file}")
-    except Exception as e:
-        logger.error(f"Failed to save JSON chat history for user {user_id}: {e}")
-
-
-
-def load_state(user_id: int) -> dict:
-    """pickle 파일에서 대화 상태를 불러옵니다."""
-    state_file = f"state_{user_id}.pkl"
-    if os.path.exists(state_file):
-        try:
-            with open(state_file, "rb") as f:
-                state = pickle.load(f)
-            logger.info(f"State for user {user_id} loaded from {state_file}")
-            return state
-        except Exception as e:
-            logger.error(f"Failed to load or read state file for user {user_id}: {e}")
-            return {}
-    return {}
 
 
 def start_chat_session():
@@ -80,7 +51,7 @@ def start_chat_session():
     }
 
     # 프로그램 시작 시, 저장된 이전 대화 상태를 불러옵니다.
-    conversation_state = load_state(user_id)
+    conversation_state = redis_connect.load_state(user_id)
     
     print("\nAssistant: 안녕하세요! 저는 당신의 커리어 어드바이저입니다.")
     if conversation_state:
@@ -103,12 +74,12 @@ def start_chat_session():
             conversation_state = run_job_advisor_workflow(current_input, conversation_state)
             
             # 워크플로우 실행 후, 최신 상태를 파일에 저장
-            save_state(user_id, conversation_state)
+            redis_connect.save_state(user_id, conversation_state)
 
             # 대화 기록만 JSON 파일로 저장
             chat_history = conversation_state.get("chat_history", [])
             if chat_history:
-                save_chat_history_json(user_id, chat_history)
+                redis_connect.save_chat_history_json(user_id, chat_history)
 
             # 사용자에게 최종 답변 출력
             final_answer = conversation_state.get("final_answer", "답변을 생성하지 못했습니다.")
