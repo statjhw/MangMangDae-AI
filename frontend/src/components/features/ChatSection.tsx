@@ -1,226 +1,175 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, User, Loader2, MessageCircle, Sparkles, CheckCircle, Clock } from 'lucide-react';
-import { UserInfo } from '../../types';
+import { Bot, User, Loader2, Send, Sparkles } from 'lucide-react';
+import { UserInfo, ChatMessage } from '../../types';
 import { runWorkflow } from '../../utils/api';
 import toast from 'react-hot-toast';
 
-interface ResponseSectionProps {
+const cn = (...classes: (string | boolean | undefined)[]) => classes.filter(Boolean).join(' ');
+
+interface ChatSectionProps {
   userInfo: UserInfo;
 }
 
-const ResponseSection = ({ userInfo }: ResponseSectionProps) => {
-  const [response, setResponse] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [startTime, setStartTime] = useState<Date | null>(null);
-  const [elapsedTime, setElapsedTime] = useState(0);
+const ChatSection = ({ userInfo }: ChatSectionProps) => {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const analysisStarted = useRef(false);
 
-  // 타이머 효과
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isLoading && startTime) {
-      interval = setInterval(() => {
-        setElapsedTime(Math.floor((Date.now() - startTime.getTime()) / 1000));
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isLoading, startTime]);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isLoading]);
 
-  // 초기 로드 시 API 호출
   useEffect(() => {
-    if (isInitialLoad && userInfo.candidate_question) {
-      setIsInitialLoad(false);
+    if (analysisStarted.current) return;
+    analysisStarted.current = true;
+
+    const handleInitialAnalysis = async () => {
       setIsLoading(true);
-      setStartTime(new Date());
-      handleAnalysis();
-    }
-  }, [isInitialLoad, userInfo.candidate_question]);
+      setMessages([{
+        id: `user-${Date.now()}`,
+        role: 'user',
+        content: userInfo.candidate_question,
+        timestamp: new Date(),
+      }]);
 
-  const handleAnalysis = async () => {
+      try {
+        const result = await runWorkflow(userInfo);
+        setMessages((prev) => [...prev, {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: result.final_answer,
+          timestamp: new Date(),
+        }]);
+        toast.success('AI 분석이 완료되었습니다!');
+      } catch (error) {
+        console.error('Failed to get initial response:', error);
+        setMessages((prev) => [...prev, {
+          id: `assistant-error-${Date.now()}`,
+          role: 'assistant',
+          content: '죄송합니다. 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+          timestamp: new Date(),
+        }]);
+        toast.error('분석 중 오류가 발생했습니다.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (userInfo.candidate_question) {
+      handleInitialAnalysis();
+    }
+  }, [userInfo]);
+
+  const handleSendMessage = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || isLoading) return;
+
+    const userMessage: ChatMessage = {
+      id: `user-${Date.now()}`, role: 'user', content: input, timestamp: new Date(),
+    };
+    setMessages((prev) => [...prev, userMessage]);
+    const currentInput = input;
+    setInput('');
+    setIsLoading(true);
+
     try {
-      const result = await runWorkflow(userInfo);
-      setResponse(result.final_answer);
-      toast.success('분석이 완료되었습니다!');
+      const workflowInput = { ...userInfo, candidate_question: currentInput };
+      const result = await runWorkflow(workflowInput);
+      setMessages((prev) => [...prev, {
+        id: `assistant-${Date.now()}`,
+        role: 'assistant',
+        content: result.final_answer,
+        timestamp: new Date(),
+      }]);
     } catch (error) {
-      console.error('Failed to get response:', error);
-      toast.error('분석 중 오류가 발생했습니다.');
-      setResponse('죄송합니다. 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+      console.error('Failed to send message:', error);
+      setMessages((prev) => [...prev, {
+        id: `assistant-error-${Date.now()}`,
+        role: 'assistant',
+        content: '죄송합니다. 답변을 처리하는 중 오류가 발생했습니다.',
+        timestamp: new Date(),
+      }]);
+      toast.error('메시지 전송 중 오류 발생');
     } finally {
       setIsLoading(false);
-      setStartTime(null);
-      setElapsedTime(0);
     }
-  };
-
-  const formatTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
   return (
-    <motion.section
-      className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6 }}
-    >
-      {/* 헤더 */}
+    <motion.section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
       <div className="text-center mb-12">
-        <motion.h2
-          className="text-3xl font-bold text-secondary-800 mb-4"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          AI 커리어 분석 결과
-        </motion.h2>
-        <motion.p
-          className="text-lg text-secondary-600"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          입력해주신 정보를 바탕으로 맞춤형 분석을 제공해드립니다
-        </motion.p>
+        <h2 className="text-3xl font-bold text-secondary-800 mb-4">AI 커리어 상담</h2>
+        <p className="text-lg text-secondary-600">AI 어드바이저와 자유롭게 대화하며 궁금증을 해결하세요.</p>
       </div>
 
-      {/* 질문 카드 */}
-      <motion.div
-        className="bg-white rounded-xl shadow-lg border border-secondary-200 p-6 mb-8"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-      >
-        <div className="flex items-start space-x-4">
-          <div className="flex-shrink-0">
-            <div className="w-12 h-12 bg-gradient-to-r from-primary-600 to-primary-700 rounded-full flex items-center justify-center">
-              <MessageCircle className="w-6 h-6 text-white" />
-            </div>
-          </div>
-          <div className="flex-1">
-            <h3 className="text-lg font-semibold text-secondary-800 mb-2">
-              귀하의 질문
-            </h3>
-            <p className="text-secondary-600 leading-relaxed">
-              {userInfo.candidate_question}
-            </p>
-          </div>
+      <div className="bg-white rounded-xl shadow-lg border border-secondary-200 flex flex-col h-[80vh]">
+        <div className="flex-1 p-6 space-y-6 overflow-y-auto">
+          <AnimatePresence>
+            {messages.map((message) => (
+              <motion.div key={message.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className={cn('flex items-start gap-4', message.role === 'user' ? 'justify-end' : 'justify-start')}>
+                {message.role === 'assistant' && (
+                  <div className="w-10 h-10 bg-gradient-to-br from-primary-600 to-primary-700 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Bot className="w-6 h-6 text-white" />
+                  </div>
+                )}
+                <div className={cn('max-w-md lg:max-w-lg p-4 rounded-2xl', message.role === 'user' ? 'bg-primary-600 text-white rounded-br-none' : 'bg-secondary-100 text-secondary-800 rounded-bl-none')}>
+                  {/* 마크다운 렌더링을 제거하고, 줄바꿈이 유지되는 일반 텍스트로 표시 */}
+                  <p className="whitespace-pre-wrap">{message.content}</p>
+                </div>
+                {message.role === 'user' && (
+                  <div className="w-10 h-10 bg-secondary-200 rounded-full flex items-center justify-center flex-shrink-0">
+                    <User className="w-6 h-6 text-secondary-600" />
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </AnimatePresence>
+          {isLoading && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start gap-4 justify-start">
+              <div className="w-10 h-10 bg-gradient-to-br from-primary-600 to-primary-700 rounded-full flex items-center justify-center flex-shrink-0">
+                <Bot className="w-6 h-6 text-white" />
+              </div>
+              <div className="bg-secondary-100 text-secondary-800 p-4 rounded-2xl rounded-bl-none">
+                <Loader2 className="w-6 h-6 text-primary-600 animate-spin" />
+              </div>
+            </motion.div>
+          )}
+          <div ref={messagesEndRef} />
         </div>
-      </motion.div>
-
-      {/* 응답 영역 */}
-      <AnimatePresence mode="wait">
-        {isLoading ? (
-          <motion.div
-            key="loading"
-            className="bg-white rounded-xl shadow-lg border border-secondary-200 p-8"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.5 }}
-          >
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-primary-600 to-primary-700 rounded-full mb-6">
-                <Loader2 className="w-8 h-8 text-white animate-spin" />
-              </div>
-              
-              <h3 className="text-xl font-semibold text-secondary-800 mb-4">
-                AI가 분석하고 있습니다...
-              </h3>
-              
-              <div className="space-y-3 mb-6">
-                <div className="flex items-center justify-center space-x-2 text-secondary-600">
-                  <Clock className="w-4 h-4" />
-                  <span>경과 시간: {formatTime(elapsedTime)}</span>
-                </div>
-                <p className="text-secondary-500">
-                  최고의 답변을 위해 심층 분석 중입니다. 잠시만 기다려주세요.
-                </p>
-              </div>
-
-              {/* 진행 단계 표시 */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-center space-x-2 text-sm">
-                  <div className="w-2 h-2 bg-primary-600 rounded-full animate-pulse" />
-                  <span className="text-secondary-600">관련 정보 수집 중...</span>
-                </div>
-                <div className="flex items-center justify-center space-x-2 text-sm">
-                  <div className="w-2 h-2 bg-primary-400 rounded-full animate-pulse delay-200" />
-                  <span className="text-secondary-600">데이터 분석 중...</span>
-                </div>
-                <div className="flex items-center justify-center space-x-2 text-sm">
-                  <div className="w-2 h-2 bg-primary-300 rounded-full animate-pulse delay-500" />
-                  <span className="text-secondary-600">맞춤형 답변 생성 중...</span>
-                </div>
+        <div className="border-t border-secondary-200 bg-secondary-50 p-4 rounded-b-xl">
+          <form onSubmit={handleSendMessage} className="flex items-center space-x-4">
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={isLoading ? "AI가 분석 중입니다..." : "추가 질문을 입력하세요..."}
+                className="w-full pl-4 pr-12 py-3 rounded-lg border-secondary-300 focus:ring-primary-500 focus:border-primary-500 transition"
+                disabled={isLoading}
+              />
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                <Sparkles className="w-5 h-5 text-secondary-400" />
               </div>
             </div>
-          </motion.div>
-        ) : response ? (
-          <motion.div
-            key="response"
-            className="bg-white rounded-xl shadow-lg border border-secondary-200 overflow-hidden"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            {/* 응답 헤더 */}
-            <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                  <CheckCircle className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-white font-semibold">분석 완료</h3>
-                  <p className="text-emerald-100 text-sm">맞춤형 커리어 조언</p>
-                </div>
-              </div>
-            </div>
-
-            {/* 응답 내용 */}
-            <div className="p-6">
-              <div className="prose prose-lg max-w-none">
-                <div className="text-secondary-800 leading-relaxed whitespace-pre-wrap">
-                  {response}
-                </div>
-              </div>
-            </div>
-
-            {/* 추가 액션 */}
-            <div className="bg-secondary-50 px-6 py-4 border-t border-secondary-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2 text-sm text-secondary-600">
-                  <Sparkles className="w-4 h-4" />
-                  <span>AI 기반 맞춤형 분석 완료</span>
-                </div>
-                <button
-                  onClick={() => window.location.reload()}
-                  className="text-primary-600 hover:text-primary-700 text-sm font-medium"
-                >
-                  새로운 질문하기
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-
-      {/* 도움말 */}
-      {!isLoading && response && (
-        <motion.div
-          className="mt-8 text-center"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.8 }}
-        >
-          <p className="text-sm text-secondary-500">
-            💡 더 궁금한 점이 있으시면 새로운 질문으로 다시 문의해주세요.
-          </p>
-        </motion.div>
-      )}
+            <button
+              type="submit"
+              disabled={isLoading || !input.trim()}
+              className="px-6 py-3 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 disabled:bg-primary-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+            >
+              {isLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Send className="w-5 h-5" />
+              )}
+            </button>
+          </form>
+        </div>
+      </div>
     </motion.section>
   );
 };
 
-export default ResponseSection; 
+export default ChatSection; 

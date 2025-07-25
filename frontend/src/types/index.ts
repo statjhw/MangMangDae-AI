@@ -28,6 +28,14 @@ export interface FormUserInfo {
   };
 }
 
+// 채팅 메시지 타입
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
+
 // 통계 데이터 타입
 export interface Statistics {
   jobPreferences: {
@@ -43,14 +51,6 @@ export interface Statistics {
     location: string;
     ratio: number;
   }[];
-}
-
-// 채팅 메시지 타입
-export interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
 }
 
 // API 응답 타입
@@ -70,10 +70,11 @@ export interface JobCategory {
 
 // 워크플로우 응답 타입
 export interface WorkflowResponse {
-  job_recommendations: string;
-  company_info: string;
-  salary_info: string;
-  preparation_advice: string;
+  session_id?: string; // session_id를 선택적 필드로 추가
+  job_recommendations?: string;
+  company_info?: string;
+  salary_info?: string;
+  preparation_advice?: string;
   final_answer: string;
 }
 

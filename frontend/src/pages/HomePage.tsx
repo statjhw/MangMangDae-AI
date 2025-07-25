@@ -2,50 +2,26 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Brain, TrendingUp, Users, Zap, ArrowRight, Star } from 'lucide-react';
 import UserInfoForm from '../components/features/UserInfoForm';
-import ResponseSection from '../components/features/ChatSection';
-import Button from '../components/common/Button';
+import ChatSection from '../components/features/ChatSection';
 import { UserInfo } from '../types';
 import toast from 'react-hot-toast';
 
 const HomePage = () => {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
-  const [currentSection, setCurrentSection] = useState<'form' | 'response'>('form');
   const [isAnalysisStarted, setIsAnalysisStarted] = useState(false);
-  const [showResponseSection, setShowResponseSection] = useState(false);
 
-
-
-  const handleAnalysisStart = async (data: UserInfo) => {
+  const handleAnalysisStart = (data: UserInfo) => {
     setUserInfo(data);
     setIsAnalysisStarted(true);
-    setShowResponseSection(true);
     toast.success('AI 분석을 시작합니다!');
     
-    // 바로 응답 섹션으로 이동
     setTimeout(() => {
-      scrollToSection('response');
+      document.getElementById('response')?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
   };
 
-  const scrollToSection = (section: 'form' | 'response') => {
-    setCurrentSection(section);
-    if (section === 'response') {
-      setShowResponseSection(true);
-    }
-    const element = document.getElementById(section);
-    if (element) {
-      if (section === 'response') {
-        // 응답 섹션으로는 즉시 이동
-        const elementTop = element.offsetTop;
-        window.scrollTo({
-          top: elementTop,
-          behavior: 'auto'
-        });
-      } else {
-        // 다른 섹션으로는 부드럽게 이동
-        element.scrollIntoView({ behavior: 'smooth' });
-      }
-    }
+  const scrollToForm = () => {
+    document.getElementById('form')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
@@ -96,7 +72,7 @@ const HomePage = () => {
             
             <motion.button
               className="bg-white text-primary-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-primary-50 transition-colors duration-200 inline-flex items-center space-x-2"
-              onClick={() => scrollToSection('form')}
+              onClick={scrollToForm}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
@@ -172,37 +148,42 @@ const HomePage = () => {
           </div>
         </div>
       </section>
-
-      {/* 사용자 정보 입력 폼 */}
-      <section id="form" className="py-20 bg-gradient-to-br from-secondary-50 to-primary-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            className="text-center mb-12"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            viewport={{ once: true }}
+      
+      {/* 사용자 정보 입력 폼 또는 채팅 섹션 */}
+      <AnimatePresence mode="wait">
+        {!isAnalysisStarted ? (
+          <motion.section
+            key="form"
+            id="form"
+            className="py-20 bg-gradient-to-br from-secondary-50 to-primary-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, transition: { duration: 0.3 } }}
           >
-            <h2 className="text-3xl md:text-4xl font-bold text-secondary-800 mb-4">
-              정보를 입력해주세요
-            </h2>
-            <p className="text-lg text-secondary-600">
-              더 정확한 분석을 위해 몇 가지 정보가 필요합니다
-            </p>
-          </motion.div>
-
-          <UserInfoForm onSubmit={handleAnalysisStart} />
-        </div>
-      </section>
-
-
-
-      {/* 응답 섹션 */}
-      <AnimatePresence>
-        {userInfo && isAnalysisStarted && showResponseSection && (
-          <section id="response" className="py-20 bg-gradient-to-br from-primary-50 to-secondary-50">
-            <ResponseSection userInfo={userInfo} />
-          </section>
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="text-center mb-12">
+                <h2 className="text-3xl md:text-4xl font-bold text-secondary-800 mb-4">
+                  정보를 입력해주세요
+                </h2>
+                <p className="text-lg text-secondary-600">
+                  더 정확한 분석을 위해 몇 가지 정보가 필요합니다
+                </p>
+              </div>
+              <UserInfoForm onSubmit={handleAnalysisStart} />
+            </div>
+          </motion.section>
+        ) : (
+          userInfo && (
+            <motion.section
+              key="response"
+              id="response"
+              className="py-20 bg-gradient-to-br from-primary-50 to-secondary-50"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1, transition: { duration: 0.5, delay: 0.3 } }}
+            >
+              <ChatSection userInfo={userInfo} />
+            </motion.section>
+          )
         )}
       </AnimatePresence>
 

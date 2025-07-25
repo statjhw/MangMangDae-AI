@@ -6,7 +6,7 @@ const API_BASE_URL = '/api';
 // axios 인스턴스 생성
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000,
+  timeout: 180000, // 타임아웃을 3분(180,000ms)으로 늘림
   headers: {
     'Content-Type': 'application/json',
   },
@@ -49,23 +49,37 @@ export const getStatistics = async (userInfo: UserInfo): Promise<Statistics> => 
 // 워크플로우 실행
 export const runWorkflow = async (userInfo: UserInfo): Promise<WorkflowResponse> => {
   try {
-    console.log('Sending workflow request:', JSON.stringify(userInfo, null, 2));
+    // 1. 새로운 API 형식에 맞게 요청 데이터를 재구성합니다.
+    const requestData = {
+      question: userInfo.candidate_question,
+      user_profile: {
+        candidate_major: userInfo.candidate_major,
+        candidate_career: userInfo.candidate_career,
+        candidate_interest: userInfo.candidate_interest,
+        candidate_location: userInfo.candidate_location,
+        candidate_tech_stack: userInfo.candidate_tech_stack,
+        candidate_salary: userInfo.candidate_salary,
+      }
+    };
+
+    console.log('Sending chat request:', JSON.stringify(requestData, null, 2));
+
+    // 2. 새로운 엔드포인트로 요청을 보내고, 세션을 위해 쿠키를 함께 전송합니다.
+    const response = await api.post('/v1/chat', requestData, {
+      withCredentials: true, 
+    });
+
+    console.log('Chat response:', response.data);
     
-    // 데이터 검증
-    console.log('Data validation:');
-    console.log('- candidate_major:', userInfo.candidate_major);
-    console.log('- candidate_career:', userInfo.candidate_career);
-    console.log('- candidate_interest:', userInfo.candidate_interest);
-    console.log('- candidate_location:', userInfo.candidate_location);
-    console.log('- candidate_tech_stack:', userInfo.candidate_tech_stack);
-    console.log('- candidate_question:', userInfo.candidate_question);
-    console.log('- candidate_salary:', userInfo.candidate_salary);
-    
-    const response = await api.post<WorkflowResponse>('/workflow', userInfo);
-    console.log('Workflow response:', response.data);
-    return response.data;
+    // 3. 백엔드 응답(answer, session_id)을 기존 프론트엔드 타입(WorkflowResponse)에 맞게 변환합니다.
+    const result: WorkflowResponse = {
+      session_id: response.data.session_id,
+      final_answer: response.data.answer,
+    };
+    return result;
+
   } catch (error: any) {
-    console.error('Failed to run workflow:', error);
+    console.error('Failed to run chat workflow:', error);
     
     // 422 에러의 경우 상세 정보 출력
     if (error.response?.status === 422) {

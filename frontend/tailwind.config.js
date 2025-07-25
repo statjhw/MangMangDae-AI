@@ -60,8 +60,20 @@ export default {
           '0%, 100%': { transform: 'translateY(0px)' },
           '50%': { transform: 'translateY(-10px)' },
         }
-      }
+      },
+      screens: {
+        '2xl': '1440px',
+        '3xl': '1600px',
+        '4xl': '1920px',
+        '5xl': '2048px',
+        '6xl': '2560px',
+        '7xl': '3072px',
+        '8xl': '3840px',
+        '9xl': '1440px',
+      },
     },
   },
-  plugins: [],
-} 
+  plugins: [
+    require('@tailwindcss/typography'),
+  ],
+}; 
