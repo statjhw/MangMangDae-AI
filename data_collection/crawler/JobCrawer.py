@@ -91,11 +91,7 @@ class Crawler:
             logger.info("2단계: 채용공고 크롤링 및 DB 저장 시작")
             processed_count = self.crawling_job_info(job_dict)
             
-            logger.info("=== 크롤링 프로세스 완료 ===")
-            logger.info(f"총 처리된 채용공고: {processed_count}개")
-            
-            return processed_count
-            
+            logger.info("=== 크롤링 프로세스 완료 ===")              
         except Exception as e:
             logger.error(f"크롤링 프로세스 중 오류 발생: {e}")
             raise
@@ -116,7 +112,7 @@ class Crawler:
                 page_source = driver.page_source
 
         return page_source
-
+    
     def get_url_list(self):
         filename = self.filenames["url_list"]
         driver = self.driver
@@ -170,8 +166,8 @@ class Crawler:
         채용공고 정보를 크롤링하고 바로 DB에 저장하는 함수
         get_recruit_content_info와 postprocess 함수를 합친 버전
         """
-        global NOT_ELEMENT_COUNT, TIMEOUT_EXCEPTION_COUNT, ELEMENT_CLICK_INTERCEPT_COUNT, EXCEPTION_COUNT
-        
+        processed_count = 0
+
         logger.info("crawling_job_info 함수 실행 - 파일 저장 없이 바로 DB 저장")
         
         if job_dict is None:
@@ -182,7 +178,6 @@ class Crawler:
                 job_dict = {}
         
         driver = self.driver
-        processed_count = 0
 
         for job_category, job_info in job_dict.items():
             logger.info(f"처리 중인 직업 카테고리: {job_category}")
@@ -192,48 +187,65 @@ class Crawler:
                     # 채용공고 페이지로 이동
                     driver.get(f"{self.endpoint}{position_url}")
                     time.sleep(1)
+                except Exception as e:
+                    logger.error(f"❌ {position_url} ▶️ 클릭 중 알 수 없는 오류: {e}")
+                    continue
+                
+                try:
+                    # 사진의 HTML 구조에 맞게 더 구체적인 선택자 사용
+                    primary_selector = "//span[@class='Button_Button__label__J05SX' and text()='상세 정보 더 보기']/ancestor::button"
+                    elements = driver.find_elements(By.XPATH, primary_selector)
+                    logger.info(f"상세 정보 버튼 요소 개수: {len(elements)}")
+                    
+                    current_selector = primary_selector
+                    
+                    if not elements: 
+                        logger.info(f"{position_url} -> 기본 선택자로 버튼 요소 없음")
+                        # 대안 선택자들 시도
+                        fallback_selectors = [
+                            "//button[contains(@class, 'Button_Button__root')]//span[text()='상세 정보 더 보기']/..",
+                            "//span[text()='상세 정보 더 보기']/ancestor::button",
+                            "//button[.//span[text()='상세 정보 더 보기']]"
+                        ]
+                        logger.info(f"fallback_selectors: {fallback_selectors}")
+                        for selector in fallback_selectors:
+                            try:
+                                elements = driver.find_elements(By.XPATH, selector)
+                                if elements:
+                                    logger.info(f"대안 선택자로 찾음: {selector}, 요소 개수: {len(elements)}")
+                                    current_selector = selector
+                                    break
+                            except Exception as e:
+                                logger.warning(f"대안 선택자 실패 {selector}: {e}")
+                                continue
+                    
+                    if elements:
+                        wait = WebDriverWait(driver, 5)
+                        more_button = wait.until(
+                            EC.element_to_be_clickable((By.XPATH, current_selector))
+                        )
+                        more_button.click()
+                        time.sleep(1)
 
-                    # 추가 정보를 위해 더보기 창 클릭 시도
-                    try:
-                        elements = driver.find_elements(By.XPATH, "//span[text()='상세 정보 더 보기']/ancestor::button")
-                        logger.info(f"상세 정보 버튼 요소 개수: {len(elements)}")
+                except TimeoutException:
+                    logger.warning(f"{position_url} -> 버튼이 5초 내에 clickable 상태가 되지 않음")
+                except ElementClickInterceptedException:
+                    logger.warning(f"🚫 {position_url} ▶️ 클릭 시 다른 요소에 가려짐")
+                except Exception as e:
+                    logger.error(f"❌ {position_url} ▶️ 클릭 중 알 수 없는 오류: {e}")
+                    
+                # 페이지 소스 가져와서 바로 파싱
+                page_source = driver.page_source
+                soup = BeautifulSoup(page_source, "html.parser")
 
-                        if not elements: 
-                            logger.info(f"{position_url} -> 버튼 요소 없음")
-                            NOT_ELEMENT_COUNT += 1
-                        else:
-                            wait = WebDriverWait(driver, 5)
-                            more_button = wait.until(
-                                EC.element_to_be_clickable(
-                                    (By.XPATH, "//span[text()='상세 정보 더 보기']/ancestor::button")
-                                )
-                            )
-                            more_button.click()
-                            logger.info(f"{position_url}의 상세 정보 더 보기 버튼 클릭")
-                            time.sleep(1)
-
-                    except TimeoutException:
-                        logger.warning(f"{position_url} -> 버튼이 5초 내에 clickable 상태가 되지 않음")
-                        TIMEOUT_EXCEPTION_COUNT += 1
-                    except ElementClickInterceptedException:
-                        logger.warning(f"🚫 {position_url} ▶️ 클릭 시 다른 요소에 가려짐")
-                        ELEMENT_CLICK_INTERCEPT_COUNT += 1
-                    except Exception as e:
-                        logger.error(f"❌ {position_url} ▶️ 클릭 중 알 수 없는 오류: {e}")
-                        EXCEPTION_COUNT += 1
-
-                    # 페이지 소스 가져와서 바로 파싱
-                    page_source = driver.page_source
-                    soup = BeautifulSoup(page_source, "html.parser")
-
-                    # 파싱 시작
-                    # Job Title
-                    job_title = (
-                        soup.find("h1", class_="wds-jtr30u").text.strip()
-                        if soup.find("h1", class_="wds-jtr30u")
-                        else None
-                    )
-
+                # 파싱 시작
+                # Job Title
+                try:
+                    job_title = soup.find("h1", class_="wds-58fmok").text.strip()
+                    logger.info(f"job_title: {job_title}")
+                except Exception as e:
+                    logger.error(f"job_title 찾기 실패 : {e}")
+                try:
                     # Company Name and ID
                     company_name_element = soup.find(
                         "strong", class_="CompanyInfo_CompanyInfo__name__sBeI6"
@@ -247,27 +259,14 @@ class Crawler:
                     company_id = (
                         company_link["href"].split("/")[-1] if company_link else None
                     )
+                    logger.info(f"company_name: {company_name}")
+                    logger.info(f"company_id: {company_id}")
+                
+                except Exception as e:
+                    logger.error(f"company_name 찾기 실패 : {e}")
 
-                    # Tags
-                    tags_article = soup.find(
-                        "article", class_="CompanyTags_CompanyTags__OpNto"
-                    )
-                    tag_name_list = []
-                    tag_id_list = []
-                    if tags_article:
-                        tag_buttons = tags_article.find_all(
-                            "button", class_="Button_Button__root__MS62F"
-                        )
-                        for tag_button in tag_buttons:
-                            tag_name_span = tag_button.find("span", class_="wds-1m3gvmz")
-                            if tag_name_span:
-                                tag_name = tag_name_span.text.strip()
-                                tag_id = tag_button.get("data-tag-id")
-                                if tag_name and tag_id:
-                                    tag_name_list.append(tag_name)
-                                    tag_id_list.append(tag_id)
-
-                    # Job Description
+                # Job Description
+                try:
                     job_description_article = soup.find(
                         "article", class_="JobDescription_JobDescription__s2Keo"
                     )
@@ -275,7 +274,7 @@ class Crawler:
                     if job_description_article:
                         # Position Detail
                         position_detail_h2 = job_description_article.find(
-                            "h2", class_="wds-qfl364"
+                            "h2", class_="wds-16rl0sf"
                         )
                         if (
                             position_detail_h2
@@ -287,7 +286,7 @@ class Crawler:
                             )
                             if position_detail_div:
                                 position_detail_span = position_detail_div.find(
-                                    "span", class_="wds-wcfcu3"
+                                    "span", class_="wds-h4ga6o"
                                 )
                                 if position_detail_span:
                                     position_detail_text = position_detail_span.get_text(
@@ -300,10 +299,10 @@ class Crawler:
                             "div", class_="JobDescription_JobDescription__paragraph__87w8I"
                         )
                         for section_div in section_divs:
-                            h3 = section_div.find("h3", class_="wds-1y0suvb")
+                            h3 = section_div.find("h3", class_="wds-17nsd6i")
                             if h3:
                                 section_title = h3.text.strip()
-                                content_span = section_div.find("span", class_="wds-wcfcu3")
+                                content_span = section_div.find("span", class_="wds-h4ga6o")
                                 if content_span:
                                     content_text = content_span.get_text(
                                         separator="\n"
@@ -331,79 +330,56 @@ class Crawler:
                                                 section_title.lower().replace(" ", "_"),
                                             )
                                         ] = content_text
-
-                    # 마감일
-                    try:
-                        deadline = soup.find("span", class_="wds-lgio6k").get_text()
-                    except:
-                        deadline = "no_data"
-                    
-                    # 위치
-                    try:
-                        location = soup.find("span", class_="wds-1o4yxuk").get_text()
-                    except:
-                        location = "no_data"
-
-                    # 경력 정보 추출 (HTML 구조에 맞게 수정)
-                    career_info = "no_data"
-                    try:
-                        # JobHeader 섹션에서 경력 정보 찾기
-                        job_header_spans = soup.find_all("span", class_="JobHeader_JobHeader__Tools__Company__Info__b9P4Y wds-1pe0q6z")
-                        
-                        for span in job_header_spans:
-                            span_text = span.text.strip()
-                            if "경력" in span_text or "신입" in span_text:
-                                career_info = span_text
-                                logger.info(f"경력 정보 추출 성공: {career_info}")
-                                break
-                        
-                        # 위에서 찾지 못한 경우 일반적인 방법으로 다시 시도
-                        if career_info == "no_data":
-                            # 경력 관련 키워드가 포함된 모든 span 태그 검색
-                            career_elements = soup.find_all("span", string=lambda text: text and ("경력" in text or "신입" in text or "년차" in text))
-                            if career_elements:
-                                career_info = career_elements[0].text.strip()
-                                logger.info(f"일반 검색으로 경력 정보 추출: {career_info}")
-                                
-                    except Exception as e:
-                        logger.warning(f"경력 정보 추출 실패: {e}")
-
-                    # 결과 구성
-                    result = {
-                        "url": f"https://www.wanted.co.kr{position_url}",
-                        "crawled_at": datetime.datetime.utcnow().isoformat(),
-                        "job_category": job_category,
-                        "job_name": self.job_category_id2name.get(
-                            int(job_category), job_category
-                        ),
-                        "title": job_title,
-                        "company_name": company_name,
-                        "company_id": company_id,
-                        "tag_name": tag_name_list,
-                        "tag_id": tag_id_list,
-                        "dead_line": deadline,
-                        "location": location,
-                        "career": career_info,  # 경력 정보 추가
-                        **detailed_content,
-                    }
-
-                    # DB에 바로 저장
-                    save_job_to_dynamodb(result)
-                    processed_count += 1
-                    
-                    logger.info(f"✅ {position_url} 처리 완료 - DB 저장 성공 (총 {processed_count}개 처리)")
-
                 except Exception as e:
-                    logger.error(f"❌ {position_url} 처리 중 오류 발생: {e}")
-                    continue
+                    logger.error(f"detailed_content 찾기 실패 : {e}")
+
+                # 마감일
+                try:
+                    deadline = soup.find("span", class_="wds-1u1yyy").get_text()
+                except Exception as e:
+                    logger.error(f"deadline 찾기 실패 : {e}")
+                
+                # 위치
+                try:
+                    location = soup.find("span", class_="wds-1td1qmv").get_text()
+                except Exception as e:
+                    logger.error(f"location 찾기 실패 : {e}")
+
+                # 경력 정보 추출 (HTML 구조에 맞게 수정)
+                try:
+                    career_info = soup.find("span", class_="JobHeader_JobHeader__Tools__Company__Info__b9P4Y wds-1pe0q6z").get_text()
+                    logger.info(f"career_info: {career_info}")
+                except Exception as e:
+                    logger.error(f"career_info 찾기 실패 : {e}")
+
+                # 결과 구성
+                result = {
+                    "url": f"https://www.wanted.co.kr{position_url}",
+                    "crawled_at": datetime.datetime.utcnow().isoformat(),
+                    "job_category": job_category,
+                    "job_name": self.job_category_id2name.get(
+                        int(job_category), job_category
+                    ),
+                    "title": job_title,
+                    "company_name": company_name,
+                    "company_id": company_id,
+                    "dead_line": deadline,
+                    "location": location,
+                    "career": career_info,  # 경력 정보 추가
+                    **detailed_content,
+                }
+
+                # DB에 바로 저장
+                save_job_to_dynamodb(result)
+                processed_count += 1
+                
+                logger.info(f"✅ {position_url} 처리 완료 - DB 저장 성공 (총 {processed_count}개 처리)")
 
         # 최종 통계 출력
         logger.info("=== 크롤링 완료 통계 ===")
         logger.info(f"총 처리된 채용공고: {processed_count}개")
-        logger.info(f"버튼 없음: {NOT_ELEMENT_COUNT}")
-        logger.info(f"Timeout: {TIMEOUT_EXCEPTION_COUNT}")
-        logger.info(f"클릭 차단: {ELEMENT_CLICK_INTERCEPT_COUNT}")
-        logger.info(f"기타 오류: {EXCEPTION_COUNT}")
-        
         return processed_count
-        
+
+if __name__ == "__main__":
+    crawler = Crawler()
+    crawler.run()
