@@ -1,19 +1,41 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Brain, TrendingUp, Users, Zap, ArrowRight, Star } from 'lucide-react';
 import UserInfoForm from '../components/features/UserInfoForm';
 import ChatSection from '../components/features/ChatSection';
-import { UserInfo } from '../types';
+import UserStatSection from '../components/features/UserStatSection';
+import { UserInfo, UserStatResponse } from '../types';
+import { getUserStat } from '../utils/api';
 import toast from 'react-hot-toast';
 
 const HomePage = () => {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [isAnalysisStarted, setIsAnalysisStarted] = useState(false);
+  const [userStat, setUserStat] = useState<UserStatResponse | null>(null);
+  const [statLoading, setStatLoading] = useState(false);
+  const [showStatSection, setShowStatSection] = useState(false);
 
   const handleAnalysisStart = (data: UserInfo) => {
     setUserInfo(data);
     setIsAnalysisStarted(true);
+    setStatLoading(true);
+    setShowStatSection(false); // 새 분석 시작 시 통계 섹션 숨김
+    
     toast.success('AI 분석을 시작합니다!');
+    
+    // 통계 데이터를 백그라운드에서 비동기로 가져오기 (채팅과 병렬 처리)
+    getUserStat(data)
+      .then((statData) => {
+        setUserStat(statData);
+        toast.success('맞춤형 통계가 준비되었습니다!');
+      })
+      .catch((error) => {
+        console.error('Failed to fetch user statistics:', error);
+        toast.error('통계 데이터를 가져오는데 실패했습니다.');
+      })
+      .finally(() => {
+        setStatLoading(false);
+      });
     
     setTimeout(() => {
       document.getElementById('response')?.scrollIntoView({ behavior: 'smooth' });
@@ -181,6 +203,53 @@ const HomePage = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1, transition: { duration: 0.5, delay: 0.3 } }}
             >
+              {/* 사용자 맞춤 통계 섹션 또는 통계 보기 버튼 */}
+              <div className="mb-12">
+                {!showStatSection ? (
+                  <motion.div key="show-stat-button" className="text-center">
+                    <motion.button
+                      className="bg-primary-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-primary-700 transition-colors duration-200 inline-flex items-center space-x-2 disabled:bg-primary-400 disabled:cursor-not-allowed"
+                      onClick={() => setShowStatSection(true)}
+                      whileHover={{ scale: statLoading ? 1 : 1.05 }}
+                      whileTap={{ scale: statLoading ? 1 : 0.95 }}
+                      disabled={statLoading}
+                    >
+                      {statLoading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                          <span>통계 생성 중...</span>
+                        </>
+                      ) : (
+                        <>
+                          <TrendingUp className="h-5 w-5" />
+                          <span>맞춤 통계 보기</span>
+                        </>
+                      )}
+                    </motion.button>
+                  </motion.div>
+                ) : (
+                  <UserStatSection 
+                    userStat={userStat} 
+                    loading={statLoading} 
+                  />
+                )}
+              </div>
+              
+              {/* 구분선 */}
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-secondary-300"></div>
+                  </div>
+                  <div className="relative flex justify-center">
+                    <span className="px-6 py-2 bg-gradient-to-r from-primary-600 to-blue-600 text-white rounded-full text-sm font-medium">
+                      💬 AI 상담 시작하기
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* AI 채팅 섹션 - 통계 로딩과 독립적으로 바로 표시 */}
               <ChatSection userInfo={userInfo} />
             </motion.section>
           )

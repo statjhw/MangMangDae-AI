@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { UserInfo, Statistics, WorkflowResponse, ApiResponse } from '../types';
+import { UserInfo, Statistics, WorkflowResponse, ApiResponse, UserStatResponse } from '../types';
 
 const API_BASE_URL = '/api';
 
@@ -42,6 +42,33 @@ export const getStatistics = async (userInfo: UserInfo): Promise<Statistics> => 
     return response.data.data!;
   } catch (error) {
     console.error('Failed to fetch statistics:', error);
+    throw error;
+  }
+};
+
+// 사용자 맞춤 통계 조회
+export const getUserStat = async (userInfo: UserInfo): Promise<UserStatResponse> => {
+  try {
+    // 사용자 정보를 직접 POST로 전송해서 통계 생성
+    const requestData = {
+      user_profile: {
+        candidate_major: userInfo.candidate_major,
+        candidate_career: userInfo.candidate_career,
+        candidate_interest: userInfo.candidate_interest,
+        candidate_location: userInfo.candidate_location,
+        candidate_tech_stack: userInfo.candidate_tech_stack,
+        candidate_salary: userInfo.candidate_salary,
+      }
+    };
+
+    const response = await api.post<UserStatResponse>('/v1/user_stat', requestData, { 
+      withCredentials: true 
+    });
+    
+    console.log('User stat response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch user statistics:', error);
     throw error;
   }
 };

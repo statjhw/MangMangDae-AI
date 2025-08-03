@@ -83,4 +83,22 @@ export interface FormState {
   step: number;
   isComplete: boolean;
   data: Partial<UserInfo>;
-} 
+}
+
+// 사용자 통계 응답 타입 (백엔드 API 응답)
+export interface UserStatResponse {
+  user_info: {
+    전공: string;
+    경력: string;
+    관심분야: string;
+    희망지역: string;
+    기술스택: string;
+  };
+  interest: {
+    interest: string;
+    total_job: number;
+  };
+  tech_stack: {
+    [techName: string]: number;
+  };
+}
