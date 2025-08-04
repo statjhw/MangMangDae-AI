@@ -1,8 +1,21 @@
+<div align="center">
+
 # MangMangDae-AI
 
 채용 플랫폼의 공고를 수집하여, AI 기반의 하이브리드 검색 및 추천 서비스를 제공하는 시스템입니다.
 
 ---
+
+### Team Members
+
+| Name | GitHub |
+| :--: | :--: |
+| 박종언 | [@statpje](https://github.com/statpje) |
+| 오영민 | [@oymin2001](https://github.com/oymin2001) |
+| 장찬우 | [@grrlkk](https://github.com/grrlkk) |
+| 정현우 | [@statjhw](https://github.com/statjhw) |
+
+</div>
 
 ### Tech Stack
 
@@ -12,6 +25,7 @@
 ![React](https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black)
 ![AWS DynamoDB](https://img.shields.io/badge/AWS%20DynamoDB-4053D6?style=for-the-badge&logo=amazondynamodb&logoColor=white)
 ![OpenSearch](https://img.shields.io/badge/OpenSearch-0055A5?style=for-the-badge&logo=opensearch&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white)
 ![LangChain](https://img.shields.io/badge/LangChain-FFFFFF?style=for-the-badge&logo=langchain&logoColor=black)
 ![Sentence-Transformers](https://img.shields.io/badge/Sentence--Transformers-000000?style=for-the-badge)
 ![Apache Airflow](https://img.shields.io/badge/Apache%20Airflow-017CEE?style=for-the-badge&logo=apacheairflow&logoColor=white)
@@ -69,7 +83,7 @@ graph LR
 
 *   **[데이터 수집](./data_collection/README.md)**: `Airflow`가 `Crawler`를 주기적으로 실행하여 채용 정보를 수집하고 `AWS DynamoDB`에 저장합니다.
 *   **[데이터 처리](./data_collection/Dynamo_to_Opensearch/README.md)**: `DynamoDB`의 데이터를 `OpenSearch`에 인덱싱하여 키워드 검색을 준비합니다.
-*   **[임베딩 및 벡터 저장](./data_collection/Embedding_to_Pinecone/README.md)**: 데이터를 벡터로 변환하여 의미 검색을 위해 `Pinecone` 벡터 DB에 저장합니다.
+*   **[임베딩 및 벡터 저장](./data_collection/Dynamo_to_Opensearch/README.md)**: `DynamoDB`의 데이터를 하이브리드 검색을 위해 데이터 변환하여 aws의 `OpenSearch` DB에 저장합니다.
 *   **[하이브리드 검색](./retrieval/README.md)**: 사용자 쿼리에 대해 `OpenSearch`(BM25)와 `Pinecone`(Dense) 검색을 동시에 수행하고, 결과를 재정렬하여 정확도를 높입니다.
 *   **[AI 워크플로우](./WorkFlow/README.md)**: 검색 결과를 바탕으로 AI 에이전트가 작업을 수행하여 최종 응답을 생성합니다.
 *   **[백엔드 API](./backend/README.md)**: `FastAPI`를 통해 전체 워크플로우를 API로 노출합니다.
@@ -81,5 +95,6 @@ graph LR
 
 
 추후 추가 내용
-1. 웹 사이트 사진 
+1. 웹 사이트 사진 + 사용 방법 설명
 2. 배포 아키텍처 설명
+3. 아키텍처 사진 수정
