@@ -32,9 +32,13 @@
 ![Git](https://img.shields.io/badge/Git-F05032?style=for-the-badge&logo=git&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 
+<br>
+
 ## 1. 프로젝트 개요 (Introduction)
 
 MangMangDae-AI는 채용 정보를 이용해  사용자에게 최적의 정보를 제공하는 것을 목표로 합니다. 최신 채용 공고를 자동으로 수집하고, AI 기술을 활용한 하이브리드 검색을 통해 사용자가 원하는 정보를 정확하고 빠르게 찾을 수 있도록 돕습니다.
+
+<br>
 
 ##  2. 주요 기능 (Key Features)
 
@@ -42,6 +46,8 @@ MangMangDae-AI는 채용 정보를 이용해  사용자에게 최적의 정보�
 *   **하이브리드 검색**: 키워드 기반의 검색(BM25)과 의미 기반의 벡터 검색(Dense)을 결합한 하이브리드 리트리버를 구현하여 검색 정확도를 극대화합니다.
 *   **AI 에이전트 워크플로우**: **LangGraph** 기반의 자율 에이전트가 검색된 정보를 바탕으로 특정 과업을 수행하고, 사용자 질의에 대한 심층적인 답변을 생성합니다.
 *   **RESTful API**: **FastAPI**를 사용하여 프로젝트의 모든 기능을 외부에서 활용할 수 있도록 안정적인 API를 제공합니다.
+
+<br>
 
 ##  3. 시스템 아키텍처 (System Architecture)
 
@@ -88,6 +94,8 @@ graph LR
 *   **[AI 워크플로우](./WorkFlow/README.md)**: 검색 결과를 바탕으로 AI 에이전트가 작업을 수행하여 최종 응답을 생성합니다.
 *   **[백엔드 API](./backend/README.md)**: `FastAPI`를 통해 전체 워크플로우를 API로 노출합니다.
 *   **[프론트엔드](./frontend/README.md)**: 백엔드 API와 통신하여 사용자에게 서비스를 제공합니다.
+
+<br>
 
 ## 4. 라이선스 (License)
 
