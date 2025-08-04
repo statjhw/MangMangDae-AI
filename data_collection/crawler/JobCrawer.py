@@ -15,12 +15,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 logger = get_logger(__name__)
 
-# 전역 카운터 변수들
-NOT_ELEMENT_COUNT = 0
-TIMEOUT_EXCEPTION_COUNT = 0
-ELEMENT_CLICK_INTERCEPT_COUNT = 0
-EXCEPTION_COUNT = 0
-
 class Crawler:
     def __init__(
             self,
@@ -84,12 +78,12 @@ class Crawler:
         try:
             # 1. URL 리스트 수집
             logger.info("1단계: URL 리스트 수집 시작")
-            job_dict = self.get_url_list()
-            logger.info(f"URL 리스트 수집 완료: {len(job_dict)}개 카테고리")
+            #job_dict = self.get_url_list()
+            #logger.info(f"URL 리스트 수집 완료: {len(job_dict)}개 카테고리")
             
             # 2. 채용공고 정보 크롤링 및 DB 저장
             logger.info("2단계: 채용공고 크롤링 및 DB 저장 시작")
-            processed_count = self.crawling_job_info(job_dict)
+            processed_count = self.crawling_job_info()
             
             logger.info("=== 크롤링 프로세스 완료 ===")              
         except Exception as e:
@@ -347,7 +341,7 @@ class Crawler:
 
                 # 경력 정보 추출 (HTML 구조에 맞게 수정)
                 try:
-                    career_info = soup.find("span", class_="JobHeader_JobHeader__Tools__Company__Info__b9P4Y wds-1pe0q6z").get_text()
+                    career_info = soup.find_all("span", class_="JobHeader_JobHeader__Tools__Company__Info__b9P4Y wds-1pe0q6z")[1].get_text()
                     logger.info(f"career_info: {career_info}")
                 except Exception as e:
                     logger.error(f"career_info 찾기 실패 : {e}")

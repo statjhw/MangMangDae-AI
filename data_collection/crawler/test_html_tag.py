@@ -190,7 +190,7 @@ def test_html_tag():
     
     ### 경력 정보 찾기
     try:
-        career_info = soup.find("span", class_="JobHeader_JobHeader__Tools__Company__Info__b9P4Y wds-1pe0q6z").get_text()
+        career_info = soup.find_all("span", class_="JobHeader_JobHeader__Tools__Company__Info__b9P4Y wds-1pe0q6z")[1].get_text()
         logger.info(f"career_info: {career_info}")
     except Exception as e:
         logger.error(f"career_info 찾기 실패 : {e}")
