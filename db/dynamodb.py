@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 import boto3
-from .logger import setup_logger
+from logger import setup_logger
 
 # 로거 설정
 logger = setup_logger(__name__)
@@ -23,7 +23,7 @@ class DynamoDB:
             aws_access_key_id=AWS_ACCESS_KEY_ID,
             aws_secret_access_key=AWS_SECRET_ACCESS_KEY
         )
-        self.table_name = "wanted_jobs"
+        self.table_name = "wanted_job"
         self.table = self.dynamodb.Table(self.table_name)
         logger.info(f"DynamoDB class initialized. Table: {self.table_name}")
     
@@ -74,9 +74,6 @@ class DynamoDB:
 
 if __name__ == "__main__":
     dynamodb = DynamoDB()
-    count = 0
-    for item in dynamodb.scan_items_generator("wanted_jobs"):
-        if count >= 1 : 
-            break
-        count += 1
-        print(item)
+    item = dynamodb.get_item({"url":"https://www.wanted.co.kr/wd/294355"})
+    for key, value in item.items():
+        print(f"{key}: {value}")

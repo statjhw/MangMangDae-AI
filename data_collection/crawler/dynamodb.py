@@ -19,7 +19,7 @@ try:
         aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
         aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
     )
-    table = dynamodb.Table("wanted_jobs")
+    table = dynamodb.Table("wanted_job")
     logger.info("테이블 연결 성공!")
 except Exception as e:
     logger.info("테이블 연결 실패!\n" + f"message: {e}")
