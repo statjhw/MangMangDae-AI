@@ -6,7 +6,7 @@ from typing import Dict, List, Any
 import json
 # 프로젝트 루트 디렉토리를 sys.path에 추가 (4단계 위로)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
-from db.opensearch import OpenSearchDB
+from DB.opensearch import OpenSearchDB
 
 # 프로젝트 루트 경로를 기준으로 파일 경로 설정
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))

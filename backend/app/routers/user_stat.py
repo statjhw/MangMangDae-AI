@@ -2,7 +2,7 @@ import sys
 import os
 from fastapi import APIRouter, Request
 from fastapi.exceptions import HTTPException
-from backend.app.services.StatUser import StatUser
+from Backend.app.services.StatUser import StatUser
 
 router = APIRouter()
 

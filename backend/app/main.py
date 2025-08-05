@@ -6,9 +6,9 @@ from fastapi.middleware.cors import CORSMiddleware
 # uvicorn으로 실행 시 프로젝트 루트를 인식할 수 있도록 경로를 추가합니다.
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from backend.app.middleware.middleware import SessionMiddleware
-from backend.app.routers import chat as chat_router
-from backend.app.routers import user_stat as user_stat_router
+from Backend.app.middleware.middleware import SessionMiddleware
+from Backend.app.routers import chat as chat_router
+from Backend.app.routers import user_stat as user_stat_router
 
 app = FastAPI(
     title="MangMangDae AI API",

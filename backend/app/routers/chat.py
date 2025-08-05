@@ -7,8 +7,8 @@ from fastapi.exceptions import HTTPException
 # 이 코드는 uvicorn으로 실행될 때를 대비한 것입니다.
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from backend.app.schemas.schemas import ChatRequest, ChatResponse
-from db.redis_connect import RedisConnect
+from Backend.app.schemas.schemas import ChatRequest, ChatResponse
+from DB.redis_connect import RedisConnect
 from WorkFlow.SLD.agents import run_job_advisor_workflow
 
 router = APIRouter()

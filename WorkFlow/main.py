@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from WorkFlow.SLD.agents import run_job_advisor_workflow
 
-from db.redis_connect import RedisConnect
+from DB.redis_connect import RedisConnect
 
 redis_connect = RedisConnect()
 
