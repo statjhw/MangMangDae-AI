@@ -88,11 +88,11 @@ graph LR
     L --> N[채팅]
     
     %% 스타일링
-    classDef db fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-    classDef process fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    classDef ai fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
-    classDef ui fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-    classDef pipeline fill:#f8f9fa,stroke:#6c757d,stroke-width:3px
+    classDef db fill:#bbdefb,stroke:#0d47a1,stroke-width:2px,color:#000000
+    classDef process fill:#e1bee7,stroke:#4a148c,stroke-width:2px,color:#000000
+    classDef ai fill:#c8e6c9,stroke:#1b5e20,stroke-width:2px,color:#000000
+    classDef ui fill:#ffe0b2,stroke:#e65100,stroke-width:2px,color:#000000
+    classDef pipeline fill:#e0e0e0,stroke:#424242,stroke-width:3px,color:#000000
 
     class C,F db
     class B,D,E,I process
