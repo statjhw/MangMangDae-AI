@@ -1,45 +1,79 @@
+# 웹 크롤링 및 웹 드라이버
 selenium>=4.32.0
 webdriver-manager>=4.0.2
 beautifulsoup4>=4.13.4
 requests>=2.32.3
+
+# 환경 설정
 python-dotenv>=1.1.0
+
+# AWS 서비스
 boto3>=1.38.19
+
+# 웹 프레임워크
+fastapi>=0.116.1
+starlette>=0.47.2
+
+# LangChain 생태계
 langchain>=0.3.25
 langchain-openai>=0.3.17
 langchain-core>=0.3.60
 langchain-text-splitters>=0.3.8
 langchain-community>=0.3.24
 langchain-pinecone>=0.2.6
+langchain-huggingface>=0.2.0
 langgraph>=0.4.5
+
+# 벡터 데이터베이스
 pinecone>=6.0.2
 pinecone-plugin-interface>=0.0.7
+
+# 데이터 검증 및 모델
 pydantic>=2.11.4
+
+# OpenAI 및 언어 모델
 openai>=1.79.0
 tiktoken>=0.9.0
+
+# 임베딩 및 트랜스포머
+sentence-transformers>=4.1.0
+transformers>=4.52.2
+torch>=2.7.0
+huggingface-hub>=0.31.4
+tokenizers>=0.21.1
+safetensors>=0.5.3
+
+# 유틸리티
 python-dateutil>=2.9.0.post0
 tavily-python>=0.7.2
-numpy>=2.2.6
+numpy>=2.0.2
+scipy>=1.13.1
+scikit-learn>=1.6.1
+tqdm>=4.67.1
+
+# 데이터 처리
+pyyaml>=6.0.2
+jsonschema>=4.23.0
+
+# 워크플로우 관리
+apache-airflow>=2.10.5
+
+# 데이터베이스 연결
+redis>=6.2.0
+opensearch-py>=3.0.0
+psycopg2>=2.9.10
+
+# 웹 검색
+tavily-python>=0.7.2
 
 # 테스트 관련 의존성
 pytest>=8.3.5
-pytest-cov>=4.1.0
-pytest-mock>=3.12.0
+pytest-cov>=6.1.1
+pytest-mock>=3.14.0
+pytest-asyncio>=0.26.0
+pytest-xdist>=3.6.1
+pytest-socket>=0.7.0
 
-pytest-asyncio>=0.23.5
-pytest-xdist>=3.5.0
-selenium>=4.15.2
-webdriver-manager>=4.0.1
-beautifulsoup4>=4.12.2
-requests>=2.31.0
-python-dotenv>=1.0.0
-boto3>=1.34.0          
-sentence-transformers>=2.4
-torch                  
-openai
-pinecone-client
-rank-bm25
-nltk
-numpy
-faiss-cpu         
-tqdm                    
->>>>>>> feature/retriever
+# 추가 유틸리티
+click>=8.1.8
+rich>=13.9.4
