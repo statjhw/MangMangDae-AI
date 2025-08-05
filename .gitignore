@@ -194,4 +194,4 @@ package.json
 
 frontend/*
 !frontend/src
-
+!frontend/README.md
