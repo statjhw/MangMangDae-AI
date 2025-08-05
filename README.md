@@ -68,68 +68,37 @@ MangMangDae-AI는 채용 정보를 이용해  사용자에게 최적의 정보�
 본 프로젝트는 마이크로서비스 아키텍처를 기반으로 각 기능이 독립적으로 구성되어 있으며, 아래와 같은 데이터 흐름을 따릅니다. 각 컴포넌트에 대한 자세한 내용은 해당 디렉토리의 `README.md` 파일을 참고하십시오.
 
 ```mermaid
-graph TB
-    %% 1. 데이터 수집 레이어
-    subgraph "1단계: 데이터 수집 (Data Collection)"
-        direction TB
-        A[Apache Airflow<br/>스케줄러] --> B[Web Crawler<br/>채용 공고 수집]
-        B --> C[(AWS DynamoDB<br/>원본 데이터 저장)]
-    end
-
-    %% 2. 데이터 처리 레이어
-    subgraph "2단계: 데이터 처리 및 인덱싱 (Data Processing)"
-        direction TB
-        D[데이터 전처리<br/>및 정제]
-        E[벡터 임베딩<br/>생성]
-        F[(OpenSearch<br/>하이브리드 인덱스<br/>• BM25 키워드 검색<br/>• Dense 벡터 검색)]
-        
-        D --> E
-        D --> F
+graph LR
+    %% Airflow 데이터 파이프라인
+    subgraph Airflow["🔄 Airflow 데이터 파이프라인"]
+        direction LR
+        B[Crawler] --> C[(DynamoDB)]
+        C --> D[전처리] --> E[임베딩]
+        D --> F[(OpenSearch<br/>BM25 + Dense)]
         E --> F
     end
-
-    %% 3. 검색 및 AI 처리 레이어
-    subgraph "3단계: 검색 및 AI 처리 (Retrieval & AI)"
-        direction TB
-        H[사용자 쿼리]
-        I[FastAPI<br/>백엔드 서버]
-        J[하이브리드 검색<br/>Retriever<br/>• BM25 + Dense<br/>• Score Normalization<br/>• Re-ranking]
-        K[LangGraph<br/>AI 에이전트<br/>워크플로우]
-        L[최종 응답 생성]
-        
-        H --> I
-        I --> J
-        J --> K
-        K --> L
-        L --> I
-    end
-
-    %% 4. 사용자 인터페이스 레이어
-    subgraph "4단계: 사용자 인터페이스 (Frontend)"
-        direction TB
-        M[React<br/>프론트엔드]
-        N[통계 대시보드]
-        O[채팅 인터페이스]
-        
-        M --> N
-        M --> O
-    end
-
-    %% 데이터 플로우 연결
-    C -.-> D
-    F -.-> J
-    I -.-> M
-
+    
+    %% 검색 및 AI
+    G[사용자 쿼리] --> H[FastAPI] <--> J[LangGraph AI]
+    F --> I[하이브리드 검색] <--> J
+    
+    %% 프론트엔드
+    L[React 앱] <--> H
+    L --> M[대시보드]
+    L --> N[채팅]
+    
     %% 스타일링
-    classDef collection fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    classDef processing fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-    classDef ai fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
-    classDef frontend fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef db fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef process fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef ai fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    classDef ui fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef pipeline fill:#f8f9fa,stroke:#6c757d,stroke-width:3px
 
-    class A,B,C collection
-    class D,E,F processing
-    class H,I,J,K,L ai
-    class M,N,O frontend
+    class C,F db
+    class B,D,E,I process
+    class G,H,J ai
+    class L,M,N ui
+    class Airflow pipeline
 ```
 
 *   **[데이터 수집](./data_collection/README.md)**: `Airflow`가 `Crawler`를 주기적으로 실행하여 채용 정보를 수집하고 `AWS DynamoDB`에 저장합니다.
