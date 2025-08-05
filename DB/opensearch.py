@@ -16,7 +16,7 @@ AWS_SECRET_ACCESS_KEY = os.getenv("AWS_OPENSEARCH_SECRET_ACCESS_KEY")
 AWS_REGION = os.getenv("AWS_REGION")
 OPENSEARCH_HOST = os.getenv("OPENSEARCH_HOST")
 OPENSEARCH_PORT = int(os.getenv("OPENSEARCH_PORT", "443"))
-OPENSEARCH_INDEX = os.getenv("OPENSEARCH_INDEX", "wanted_jobs")
+OPENSEARCH_INDEX = os.getenv("OPENSEARCH_INDEX", "opensearch_job")
 
 
 class OpenSearchDB:
