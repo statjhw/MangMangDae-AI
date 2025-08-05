@@ -133,6 +133,7 @@ class DynamoToOpenSearchMigrator:
                 'job_category': dynamo_item.get('job_category', ''),
                 'dead_line': dynamo_item.get('dead_line', ''),
                 'crawled_at': dynamo_item.get('crawled_at', ''),
+                'career': dynamo_item.get('career', ''),
             }
             
             # 태그 정보

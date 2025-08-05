@@ -59,6 +59,9 @@ class JobDataPreprocessor:
             deadline = f"마감일: {job_data.get('dead_line', '')}"
             text_parts.append(deadline)
             
+            career = f"경력: {job_data.get('career', '')}"
+            text_parts.append(career)
+            
             # 포지션 상세
             if job_data.get('position_detail'):
                 position_detail = f"포지션 상세:\n{job_data.get('position_detail', '')}"
