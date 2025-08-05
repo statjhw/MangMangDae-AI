@@ -6,6 +6,7 @@ from langchain_core.tools import tool
 from langsmith import traceable
 from WorkFlow.Util.utils import advice_chain, summary_memory_chain, final_answer_chain, intent_analysis_chain, contextual_qa_prompt_chain, reformulate_query_chain, web_search_planner_chain
 from Retrieval.hybrid_retriever import hybrid_search, _format_hit_to_text
+from WorkFlow.config import get_tavily_tool, RateLimitError
 import re
 
 # 로깅 설정
@@ -16,8 +17,7 @@ logger = logging.getLogger(__name__)
 os.environ["LANGCHAIN_TRACING_V2"] = "true"
 os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGSMITH_PROJECT", "job_advisor")
 
-# 벡터 스토어 초기화
-
+tavily_tool = get_tavily_tool()
 
 @tool
 @traceable(name="analyze_intent_tool")

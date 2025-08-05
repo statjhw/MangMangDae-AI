@@ -1,5 +1,5 @@
 from typing import Dict, List, Any, Callable
-from config import get_llm
+from WorkFlow.config import get_llm
 from Template.prompts import actionable_advice_prompt, summary_memory_prompt, final_answer_prompt, intent_analysis_prompt, contextual_qa_prompt, reformulate_query_prompt, web_search_planner_prompt
 
 # llm 객체를 함수로 받아옴
