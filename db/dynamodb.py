@@ -71,9 +71,71 @@ class DynamoDB:
                 logger.debug(f"Yielding item: {item.get('url', 'N/A')} from paginated scan") # Assuming 'url' exists
                 yield item
         logger.info(f"Finished scan for DynamoDB table: {table_name}") 
+    
+    def get_total_item_count(self):
+        """
+        DynamoDB 테이블의 총 문서(아이템) 개수를 반환합니다.
+        실제 스캔을 통해 정확한 개수를 카운트합니다.
+        
+        Returns:
+            int: 테이블의 총 아이템 개수
+        """
+        logger.info(f"Starting count of total items in table: {self.table_name}")
+        count = 0
+        
+        try:
+            # scan_items_generator를 사용하여 모든 아이템을 카운트
+            for item in self.scan_items_generator(self.table_name):
+                count += 1
+            
+            logger.info(f"Total item count in table {self.table_name}: {count}")
+            return count
+            
+        except Exception as e:
+            logger.error(f"Error while counting items in table {self.table_name}: {str(e)}")
+            raise e
+    
+    def get_table_description(self):
+        """
+        DynamoDB 테이블의 메타데이터를 반환합니다 (ItemCount 포함).
+        주의: ItemCount는 실시간이 아니며 약 6시간마다 업데이트됩니다.
+        
+        Returns:
+            dict: 테이블 설명 정보
+        """
+        try:
+            response = self.table.meta.client.describe_table(TableName=self.table_name)
+            table_info = response['Table']
+            logger.info(f"Table description retrieved for {self.table_name}")
+            return table_info
+        except Exception as e:
+            logger.error(f"Error while getting table description for {self.table_name}: {str(e)}")
+            raise e
 
 if __name__ == "__main__":
     dynamodb = DynamoDB()
-    item = dynamodb.get_item({"url":"https://www.wanted.co.kr/wd/294355"})
-    for key, value in item.items():
-        print(f"{key}: {value}")
+    
+    print("=== DynamoDB 테이블 정보 ===")
+    
+    # 방법 1: 테이블 메타데이터에서 ItemCount 확인 (실시간이 아님)
+    try:
+        table_info = dynamodb.get_table_description()
+        estimated_count = table_info.get('ItemCount', 0)
+        print(f"테이블명: {table_info['TableName']}")
+        print(f"예상 문서 개수 (메타데이터): {estimated_count:,}개")
+        print(f"테이블 상태: {table_info['TableStatus']}")
+        print(f"생성일: {table_info['CreationDateTime']}")
+    except Exception as e:
+        print(f"테이블 메타데이터 조회 실패: {e}")
+    
+    print("\n" + "="*50)
+    
+    # 방법 2: 실제 스캔을 통한 정확한 문서 개수 확인
+    try:
+        print("실제 문서 개수를 확인 중... (시간이 소요될 수 있습니다)")
+        actual_count = dynamodb.get_total_item_count()
+        print(f"실제 문서 개수 (스캔 결과): {actual_count:,}개")
+    except Exception as e:
+        print(f"실제 문서 개수 확인 실패: {e}")
+    
+    print("\n" + "="*50 + "\n")

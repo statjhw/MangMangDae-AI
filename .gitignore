@@ -4,7 +4,7 @@ job_integration/.env
 
 #driver
 chromedriver-mac-arm64/
-data_collection/backup/
+DataCollection/backup/
 
 .DS_Store
 
@@ -138,6 +138,10 @@ ENV/
 env.bak/
 venv.bak/
 
+# Frontend
+frontend/node_modules/
+
+
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -184,3 +188,10 @@ export_var.sh
 #.idea/
 
 frontend/node_modules/
+
+package-lock.json
+package.json
+
+frontend/*
+!frontend/src
+!frontend/README.md

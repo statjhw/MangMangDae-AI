@@ -5,9 +5,8 @@ import os
 from langchain_core.tools import tool
 from langsmith import traceable
 from WorkFlow.Util.utils import advice_chain, summary_memory_chain, final_answer_chain, intent_analysis_chain, contextual_qa_prompt_chain, reformulate_query_chain, web_search_planner_chain
-from retrieval.embeddings import get_vector_store, retrieve
-from retrieval.bm25 import bm25_search, _format_hit_to_text
-from config import get_tavily_tool, RateLimitError
+from Retrieval.hybrid_retriever import hybrid_search, _format_hit_to_text
+from WorkFlow.config import get_tavily_tool, RateLimitError
 import re
 
 # 로깅 설정
@@ -18,8 +17,6 @@ logger = logging.getLogger(__name__)
 os.environ["LANGCHAIN_TRACING_V2"] = "true"
 os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGSMITH_PROJECT", "job_advisor")
 
-# 벡터 스토어 초기화
-vector_store = get_vector_store()
 tavily_tool = get_tavily_tool()
 
 @tool
@@ -88,7 +85,7 @@ def recommend_jobs_tool(state: Union[Dict[str, Any], str]) -> Dict[str, Any]:
     try:
         #doc_scores, doc_texts = retrieve(query, exclude_urls=state.get("excluded_jobs", []))
         
-        doc_scores, doc_ids, doc_texts = bm25_search(
+        doc_scores, doc_ids, doc_texts = hybrid_search(
             user_profile=user_profile,
             exclude_ids=state.get("excluded_ids", [])
         )

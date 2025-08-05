@@ -5,7 +5,7 @@ from requests_aws4auth import AWS4Auth
 import boto3
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from db.logger import setup_logger
+from DB.logger import setup_logger
 
 # 로거 설정
 logger = setup_logger(__name__)
@@ -128,17 +128,13 @@ class OpenSearchDB:
                         "job_category": {"type": "keyword"},
                         "dead_line": {"type": "text"},
                         "crawled_at": {"type": "date", "format": "strict_date_optional_time||epoch_millis"},
-                        "tag_name": {"type": "keyword"},
-                        "tag_id": {"type": "keyword"},
                         "position_detail": {"type": "text", "analyzer": "standard"},
                         "main_tasks": {"type": "text", "analyzer": "standard"},
                         "qualifications": {"type": "text", "analyzer": "standard"},
                         "preferred_qualifications": {"type": "text", "analyzer": "standard"},
                         "benefits": {"type": "text", "analyzer": "standard"},
                         "hiring_process": {"type": "text", "analyzer": "standard"},
-                        "tech_stack": {"type": "text", "analyzer": "standard"},
                         "created_at": {"type": "date", "format": "strict_date_optional_time||epoch_millis"},
-                        "updated_at": {"type": "date", "format": "strict_date_optional_time||epoch_millis"},
 
                         #임베딩 관련 필드들 추가
                         "content_embedding": {
@@ -156,11 +152,15 @@ class OpenSearchDB:
                         "preprocessed_content": {
                             "type": "text",
                             "analyzer": "standard"
+                        },
+                        "updated_at": {
+                            "type": "date", 
+                            "format": "strict_date_optional_time||epoch_millis"
+                        }
                     }
                 }
             }
-        }
-            
+        
         try:
             # 먼저 연결 테스트
             if not self.test_connection():
