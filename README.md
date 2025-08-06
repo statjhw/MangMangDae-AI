@@ -13,7 +13,7 @@
 | 박종언 | [@statpje](https://github.com/statpje) |
 | 오영민 | [@oymin2001](https://github.com/oymin2001) |
 | 장찬우 | [@grrlkk](https://github.com/grrlkk) |
-| 정현우 | [@statjhw](https://github.com/statjhw) |
+| 장현우 | [@statjhw](https://github.com/statjhw) |
 
 </div>
 
