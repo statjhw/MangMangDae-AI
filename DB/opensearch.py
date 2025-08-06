@@ -135,7 +135,7 @@ class OpenSearchDB:
                         "benefits": {"type": "text", "analyzer": "standard"},
                         "hiring_process": {"type": "text", "analyzer": "standard"},
                         "created_at": {"type": "date", "format": "strict_date_optional_time||epoch_millis"},
-
+                        "career": {"type": "text", "analyzer": "standard"},
                         #임베딩 관련 필드들 추가
                         "content_embedding": {
                             "type": "knn_vector",

@@ -81,6 +81,7 @@ graph LR
     %% 검색 및 AI
     G[사용자 쿼리] --> H[FastAPI] <--> J[LangGraph AI]
     F --> I[하이브리드 검색] <--> J
+    H <--> K[(Redis<br/>대화 캐시)]
     
     %% 프론트엔드
     L[React 앱] <--> H
@@ -89,12 +90,14 @@ graph LR
     
     %% 스타일링
     classDef db fill:#bbdefb,stroke:#0d47a1,stroke-width:2px,color:#000000
+    classDef cache fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000000
     classDef process fill:#e1bee7,stroke:#4a148c,stroke-width:2px,color:#000000
     classDef ai fill:#c8e6c9,stroke:#1b5e20,stroke-width:2px,color:#000000
     classDef ui fill:#ffe0b2,stroke:#e65100,stroke-width:2px,color:#000000
     classDef pipeline fill:#e0e0e0,stroke:#424242,stroke-width:3px,color:#000000
 
     class C,F db
+    class K cache
     class B,D,E,I process
     class G,H,J ai
     class L,M,N ui
