@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { UserInfo, Statistics, WorkflowResponse, ApiResponse, UserStatResponse, SessionInfo, SessionStats } from '../types';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 // axios 인스턴스 생성
 const api = axios.create({
