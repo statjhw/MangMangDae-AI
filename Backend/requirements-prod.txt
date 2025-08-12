@@ -1,39 +1,73 @@
-# Core FastAPI dependencies
-fastapi==0.116.1
-uvicorn==0.24.0
-python-multipart==0.0.6
-python-jose==3.3.0
-python-dotenv==1.0.0
-pydantic==2.11.7
-pydantic-settings==2.10.1
+# 환경 설정
+python-dotenv>=1.1.0
 
-# HTTP and async
-aiohttp==3.12.14
-httpx==0.28.1
-httpcore==1.0.9
-anyio==3.7.1
+# AWS 서비스
+boto3>=1.38.19
 
-# LangChain core (without heavy ML dependencies)
-langchain-core==0.3.72
-langchain-openai==0.3.28
-langchain-community==0.3.27
-langchain-text-splitters==0.3.8
+# 웹 프레임워크
+fastapi>=0.116.1
+starlette>=0.47.2
 
-# Database and storage
-boto3==1.39.12
-redis==6.2.0
-opensearch-py==3.0.0
+# LangChain 생태계
+langchain>=0.3.25
+langchain-openai>=0.3.17
+langchain-core>=0.3.60
+langchain-text-splitters>=0.3.8
+langchain-community>=0.3.24
+langchain-pinecone>=0.2.6
+langchain-huggingface>=0.2.0
+langgraph>=0.4.5
 
-# Pinecone (lightweight)
-pinecone-client==3.2.2
+# 벡터 데이터베이스
+pinecone>=6.0.2
+pinecone-plugin-interface>=0.0.7
 
-# Essential utilities
-requests==2.32.4
-python-dateutil==2.9.0.post0
-pyyaml==6.0.2
-jinja2==3.1.6
-click==8.1.8
+# 데이터 검증 및 모델
+pydantic>=2.11.4
 
-# Authentication and security
-cryptography==45.0.5
-certifi==2025.7.9
+# OpenAI 및 언어 모델
+openai>=1.79.0
+tiktoken>=0.9.0
+
+# 임베딩 및 트랜스포머
+sentence-transformers>=4.1.0
+transformers>=4.52.2
+torch>=2.7.0
+huggingface-hub>=0.31.4
+tokenizers>=0.21.1
+safetensors>=0.5.3
+
+# 유틸리티
+python-dateutil>=2.9.0.post0
+tavily-python>=0.7.2
+numpy>=2.0.2
+scipy>=1.13.1
+scikit-learn>=1.6.1
+tqdm>=4.67.1
+
+# 데이터 처리
+pyyaml>=6.0.2
+jsonschema>=4.23.0
+
+# 워크플로우 관리
+apache-airflow>=2.10.5
+
+# 데이터베이스 연결
+redis>=6.2.0
+opensearch-py>=3.0.0
+psycopg2>=2.9.10
+
+# 웹 검색
+tavily-python>=0.7.2
+
+# 테스트 관련 의존성
+pytest>=8.3.5
+pytest-cov>=6.1.1
+pytest-mock>=3.14.0
+pytest-asyncio>=0.26.0
+pytest-xdist>=3.6.1
+pytest-socket>=0.7.0
+
+# 추가 유틸리티
+click>=8.1.8
+rich>=13.9.4
