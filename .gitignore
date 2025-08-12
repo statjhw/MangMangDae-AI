@@ -131,6 +131,10 @@ celerybeat.pid
 
 # Environments
 .env
+.env.local
+.env.development
+.env.production
+.env.staging
 .venv
 env/
 venv/
@@ -139,7 +143,13 @@ env.bak/
 venv.bak/
 
 # Frontend
-frontend/node_modules/
+Frontend/node_modules/
+Frontend/dist/
+Frontend/.env
+Frontend/.env.local
+Frontend/.env.production
+Frontend/.vercel
+*.tsbuildinfo
 
 
 # Spyder project settings
