@@ -116,7 +116,7 @@ api.interceptors.response.use(
         processQueue(renewError, null);
         
         // Only dispatch session expiry event for actual failures that affect user experience
-        if (renewError.response?.status !== 401 && renewError.response?.status !== 403) {
+        if ((renewError as any)?.response?.status !== 401 && (renewError as any)?.response?.status !== 403) {
           window.dispatchEvent(new CustomEvent('sessionExpired', {
             detail: { message: 'Session management error occurred' }
           }));

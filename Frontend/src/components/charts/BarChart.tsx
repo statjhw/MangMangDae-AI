@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { CHART_COLORS } from '../../utils/constants';
 
 interface BarChartData {
@@ -72,12 +72,9 @@ const BarChart = ({
             animationBegin={200}
           >
             {chartData.map((entry, index) => (
-              <motion.cell
+              <Cell
                 key={`cell-${index}`}
                 fill={entry.color}
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
               />
             ))}
           </Bar>
