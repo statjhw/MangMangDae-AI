@@ -9,6 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 from Backend.app.middleware.middleware import EnhancedSessionMiddleware
 from Backend.app.routers import chat as chat_router
 from Backend.app.routers import user_stat as user_stat_router
+from Backend.app.config import settings
 
 app = FastAPI(
     title="MangMangDae AI API",
@@ -17,18 +18,9 @@ app = FastAPI(
 )
 
 # CORS (Cross-Origin Resource Sharing) 설정
-# 프론트엔드 주소 (예: http://localhost:3000)에서의 요청을 허용합니다.
-origins = [
-    "http://localhost",
-    "http://localhost:3000",
-    "http://localhost:3001",  # Add frontend port 3001
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:3001",  # Add frontend port 3001
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=settings.cors_origins,
     allow_credentials=True, # 쿠키를 포함한 요청을 허용합니다.
     allow_methods=["*"],    # 모든 HTTP 메소드를 허용합니다.
     allow_headers=["*"],    # 모든 HTTP 헤더를 허용합니다.
