@@ -191,9 +191,12 @@ frontend/node_modules/
 
 package-lock.json
 
-frontend/*
-!frontend/src
-!frontend/README.md
+# Frontend build outputs and dependencies
+Frontend/node_modules/
+Frontend/dist/
+Frontend/.vite/
+
+# Keep all other Frontend files for deployment
 
 memory/chat_histories_json
 .claude/
