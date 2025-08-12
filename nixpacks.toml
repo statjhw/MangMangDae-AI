@@ -1,10 +1,11 @@
 [phases.setup]
-nixPkgs = ["python39", "python39Packages.pip"]
+nixPkgs = ["python310"]
 
 [phases.install]
 cmds = [
-    "pip install --upgrade pip",
-    "pip install -r requirements.txt"
+    "python -m ensurepip --upgrade",
+    "python -m pip install --upgrade pip setuptools wheel",
+    "python -m pip install --no-cache-dir -r requirements.txt"
 ]
 
 [start]
