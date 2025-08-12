@@ -4,7 +4,7 @@ import json
 import os
 from langchain_core.tools import tool
 from langsmith import traceable
-from WorkFlow.Util.utils import advice_chain, summary_memory_chain, final_answer_chain, intent_analysis_chain, contextual_qa_prompt_chain, reformulate_query_chain, web_search_planner_chain
+from WorkFlow.Util.utils import advice_chain, summary_memory_chain, final_answer_chain, intent_analysis_chain, contextual_qa_prompt_chain, reformulate_query_chain, web_search_planner_chain, hyde_reformulation_chain
 from Retrieval.hybrid_retriever import hybrid_search, _format_hit_to_text
 from WorkFlow.config import get_tavily_tool, RateLimitError
 import re
@@ -121,31 +121,30 @@ def present_candidates_tool(state: Dict[str, Any]) -> Dict[str, str]:
     
     response_lines = ["다음은 추천하는 채용 공고 목록입니다. 더 자세히 알아보고 싶은 공고의 번호를 알려주세요.\n"]
     for job in job_list:
-        # [핵심] 더 이상 텍스트를 파싱하지 않고, 저장된 딕셔너리에서 직접 데이터를 가져옵니다.
         source_data = job.get('source_data', {})
         
-# print(f"제목: {document.get('title', '정보 없음')}")
-#             print(f"회사명: {document.get('company_name', '정보 없음')}")
-#             print(f"지역: {document.get('location', '정보 없음')}")
-#             print(f"직무: {document.get('title', '정보 없음')}")
-#             print(f"기술 스택 • 툴: {document.get('tech_stack', '정보 없음')}")
-#             print(f"자격요건: {document.get('qualifications', '정보 없음')}")
-
-#             print(f"주요 업무: {document.get('main_tasks', '정보 없음')}")
-
         company = source_data.get("company_name", "정보 없음")
         title = source_data.get("title", "정보 없음")
         location = source_data.get("location", "정보 없음")
         qualifications = source_data.get("qualifications", [])
+        main_tasks = source_data.get('main_tasks', '정보 없음')
 
-        summary = ""
+        qualifications_str = ""
+        main_tasks_str = ""
         if qualifications and isinstance(qualifications, list):
-             summary = f"✨ 주요 요건: {qualifications[0]}"
+             qualifications_str = f"✨ 자격 요건: {', '.join(qualifications)}"
+
+        if main_tasks and isinstance(main_tasks, list):
+            main_tasks_str = f"🏷️ 주요 업무: {', '.join(main_tasks)}"
 
         response_lines.append(f"**{job['index']}. {company} - {title}**")
         response_lines.append(f"📍 위치: {location}")
-        if summary:
-            response_lines.append(summary)
+
+        if main_tasks_str:
+            response_lines.append(main_tasks_str)
+        if qualifications_str:
+            response_lines.append(qualifications_str)
+
         response_lines.append("-" * 20)
     
     response_lines.append("\n더 자세히 알아보고 싶은 공고의 번호를 알려주세요. 해당 공고에 대한 심층 분석을 제공해 드립니다.")
@@ -227,6 +226,58 @@ def reformulate_query_tool(state: Dict[str, Any]) -> Dict[str, str]:
         # 실패 시, 원래 질문을 그대로 사용
         return {"user_input": state.get("user_input")}
 
+
+@tool
+@traceable(name="formulate_retrieval_query_tool")
+def formulate_retrieval_query_tool(state: Dict[str, Any]) -> Dict[str, Any]:
+    """HyDE 기반 채용 공고 생성 도구
+    사용자 프로필과 질문을 바탕으로, 가상의 채용 공고를 생성합니다.
+    생성된 공고는 리트리버에 입력되어 검색 결과에 포함됩니다.
+    """
+    if not isinstance(state, dict) or "user_input" not in state:
+        logger.warning("Invalid state provided to formulate_retrieval_query_tool: %s", state)
+        return {"user_input": state.get("user_input", {})}
+
+    user_input = state.get("user_input", {})
+
+    # 사용자 프로필 요약 문자열 구성
+    user_profile_str = (
+        f"학력: {user_input.get('candidate_major', '')}, "
+        f"경력: {user_input.get('candidate_career', '')}, "
+        f"희망 직무: {user_input.get('candidate_interest', '')}, "
+        f"기술 스택: {', '.join(user_input.get('candidate_tech_stack', []))}, "
+        f"희망 근무지역: {user_input.get('candidate_location', '')}"
+    )
+
+    natural_question = user_input.get("candidate_question", "")
+
+    try:
+        response_content = hyde_reformulation_chain.invoke({
+            "user_profile": user_profile_str,
+            "question": natural_question
+        }).content.strip()
+        result_json = json.loads(response_content)
+
+        hypothetical_document = result_json.get("hypothetical_document", "")
+        company_names = result_json.get("company_names", [])
+
+        # HyDE 가짜문서만 hyde_query에 저장
+        updated_user_input = {
+            **user_input, 
+            "hyde_query": hypothetical_document   # HyDE 가짜문서 (리트리버용)
+        }
+        logger.info(f"Formulated HyDE document: '{hypothetical_document[:100]}...'")
+        if company_names:
+            logger.info(f"Extracted company filter: {company_names}")
+
+        return {
+            "user_input": updated_user_input,
+            "company_name_filter": company_names
+        }
+    except Exception as e:
+        logger.error(f"Hiring query formulation error: {e}", exc_info=True)
+        # 에러 시에는 원래 user_input 그대로 반환
+        return {"user_input": user_input}
 
 @tool
 @traceable(name="search_company_info_tool")
@@ -395,7 +446,7 @@ def get_preparation_advice_tool(state: Union[Dict[str, Any], str]) -> Dict[str, 
 @traceable(name="contextual_qa_tool")
 def contextual_qa_tool(state: Dict[str, Any]) -> Dict[str, Any]:
     """선택된 직무와 웹 검색을 통해 후속 질문에 답변"""
-    question = state.get("user_input", {}).get("candidate_question", "")
+    question = state.get("user_input", {}).get("candidate_question", "") #################
     company_context = state.get("selected_job", "선택된 채용 공고가 없습니다.")
     web_search_context = ""
 
@@ -410,7 +461,7 @@ def contextual_qa_tool(state: Dict[str, Any]) -> Dict[str, Any]:
 
         if "필요함" in planner_decision:
             logger.info("Execution step: Web search is necessary. Calling search_company_info_tool.")
-            search_result_dict = search_company_info_tool(state)
+            search_result_dict = search_company_info_tool.func(state)
             web_search_context = search_result_dict.get("search_result", "")
         else:
             logger.info("Execution step: Web search is not necessary. Skipping.")

@@ -5,6 +5,7 @@ from typing import Dict, Any, Optional
 
 import redis
 
+
 class RedisConnect:
     def __init__(self):
         try:
@@ -56,14 +57,7 @@ class RedisConnect:
     # save_chat_history_json 함수는 더 이상 필요 없으므로 삭제합니다.
 
 if __name__ == "__main__":
-    redis_connect = RedisConnect()
-    print("Redis PING:", redis_connect.redis_client.ping())
-
-    # 간단한 테스트
-    test_session_id = "test-session-123"
-    test_state = {"message": "hello"}
-    redis_connect.save_state(test_session_id, test_state)
-    loaded = redis_connect.load_state(test_session_id)
-    print(f"Saved and loaded state: {loaded}")
-    assert test_state == loaded
-    print("Test passed!")
+    rc = RedisConnect()
+    session_id = "10"  # 저장할 때 쓴 세션 ID (예: WorkFlow/main.py에서 user_id=10)
+    state = rc.load_state(session_id)
+    print(state)

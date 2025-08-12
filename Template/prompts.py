@@ -1,6 +1,40 @@
 from langchain.prompts import PromptTemplate
 
 
+# hybrid search에서 knn에 들어가는 입력 쿼리를 생성하는 프롬프트
+# 기존 사용자 정보는 BM25로 매칭했으니, 여기서는 사용자 프로필과 요청을 바탕으로 가상의 채용 공고를 생성
+hyde_reformulation_prompt = PromptTemplate(
+    input_variables=[
+        "user_profile",
+        "question"
+    ],
+    template="""당신은 사용자의 프로필과 요청을 바탕으로, 그에게 가장 이상적인 '가상의 채용 공고'를 생성하는 AI입니다.
+
+
+[사용자 프로필 요약]
+{user_profile}
+
+[사용자 자연어 요청]
+{question}
+
+[지시사항]
+1.  **가상 채용 공고 생성**: 사용자의 프로필과 요청을 종합하여 가장 이상적인 '가상의 채용 공고'를 한 편 작성합니다.
+2.  **회사명 추출 및 확장**:
+    - 사용자의 요청에 '네카라쿠배'와 같은 별칭이 있으면, 이를 ['네이버', '카카오', '라인', '쿠팡', '우아한형제들']과 같이 정식 회사명 리스트로 확장합니다.
+    - 사용자의 요청에 '삼성전자'와 같은 특정 회사명이 있으면, 이를 ['삼성전자']와 같이 리스트에 담습니다.
+    - 회사명이나 별칭 언급이 전혀 없으면, 빈 리스트 `[]`를 반환합니다.
+3.  **JSON 출력**: 아래 형식에 맞춰, 생성된 가상 공고와 회사명 리스트를 포함한 JSON 객체만 출력하세요. 다른 설명은 절대 추가하지 마세요.
+
+[출력 JSON 형식]
+{{
+  "hypothetical_document": "[document]\\n\\n직무: ... (생성된 가상 채용 공고 내용)",
+  "company_names": ["추출 또는 확장된 회사명 리스트"]
+}}
+
+"""
+)
+
+
 # 조언 생성을 위한 프롬프트
 actionable_advice_prompt = PromptTemplate(
     input_variables=["user_profile", "job_data", "interview_questions_context", "company_culture_context"],

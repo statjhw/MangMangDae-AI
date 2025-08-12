@@ -35,14 +35,18 @@ def build_hybrid_query(user_input: dict, top_k: int = 5, exclude_ids: list = Non
     career = user_input.get("candidate_career", "")
     tech_stack = " ".join(user_input.get("candidate_tech_stack", []))
     location = user_input.get("candidate_location", "")
+    company_name = user_input.get("company_name_filter", [])
     
-    #chat에서 활용되는 사용자의 질문
-    query = user_input.get("candidate_question", "")
+    #chat에서 활용되는 사용자의 질문 - HyDE 가짜문서 우선, 없으면 원래 질문
+    hyde_query = user_input.get("hyde_query", "")
+    original_query = user_input.get("candidate_question", "")
+    query = hyde_query if hyde_query else original_query
     
     # 임베딩 모델로 쿼리 벡터 생성
     embedding_model = get_embedding_model()
     query_vector = embedding_model.embed_query(f"[Query] {query}")
-    
+
+
     # 제외할 ID가 있을 경우 must_not 절 구성
     must_not_clauses = []
     if exclude_ids:
@@ -78,7 +82,11 @@ def build_hybrid_query(user_input: dict, top_k: int = 5, exclude_ids: list = Non
                     {"match": {"career": {"query": career, "boost": 1.5}}},
                     # 위치 매칭
                     {"match": {"location": {"query": location, "boost": 1.2}}} if location else None,
-                    
+
+                    # 회사명 매칭
+                    {"match": {"company_name": {"query": company_name, "boost": 1.2}}} if company_name else None,
+
+
                     # KNN 의미적 검색 추가
                     {
                         "knn": {

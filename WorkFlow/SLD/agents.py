@@ -9,8 +9,9 @@ from WorkFlow.SLD.tools import (
     search_company_info_tool, get_preparation_advice_tool, 
     record_history_tool, generate_final_answer_tool, analyze_intent_tool, contextual_qa_tool,
     present_candidates_tool, load_selected_job_tool, recommend_jobs_tool, reformulate_query_tool,
-    research_for_advice_tool
+    research_for_advice_tool, formulate_retrieval_query_tool
 )
+import re
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -29,6 +30,7 @@ class GraphState(TypedDict, total=False):
     # --- 핵심 입력 및 사용자 정보 ---
     user_input: Dict[str, Any]
     user_id: int
+    company_name_filter: List[str] # 유저 질문에 회사명이 포함되어 있다면, 회사명 필터링을 위한 리스트
     
     # --- 대화 흐름 및 맥락 관리 ---
     intent: str
@@ -114,13 +116,26 @@ def reformulate_query(state: GraphState) -> GraphState:
     result = reformulate_query_tool.func(state)
     return {**state, **result}
 
+@traceable(name="formulate_retrieval_query_node")
+def formulate_retrieval_query(state: GraphState) -> GraphState:
+    """리트리버 친화적 쿼리로 변환하는 노드"""
+    result = formulate_retrieval_query_tool.func(state)
+    return {**state, **result}
+
 # 조건부 분기 함수 수정
 @traceable(name="should_route_edge")
 def should_route(state: GraphState) -> str:
     """사용자 의도와 현재 state를 바탕으로 경로를 결정합니다."""
     intent = state.get("intent", "chit_chat")
+    job_list_exists = bool(state.get("job_list")) # 이전 턴에 추천 목록이 있었는지 확인
     job_is_selected = bool(state.get("selected_job"))
+    user_question = state.get("user_input", {}).get("candidate_question", "")
 
+    if job_list_exists and not job_is_selected and re.search(r'\d+', user_question):
+        logger.info("Override: Detected a number selection. Forcing route to 'analyze_selection'.")
+        state['intent'] = 'select_job' 
+        return "analyze_selection"
+    
     if intent == "chit_chat":
         return "dismiss"
 
@@ -192,6 +207,7 @@ def build_workflow_graph() -> StateGraph:
     workflow.add_node("load_selected_job", load_selected_job) 
     workflow.add_node("recommend_jobs", recommend_jobs)
     workflow.add_node("reformulate_query", reformulate_query)
+    workflow.add_node("formulate_retrieval_query", formulate_retrieval_query)
     #workflow.add_node("verify_job_relevance", verify_job_relevance)
     workflow.add_node("get_company_info", get_company_info)
     workflow.add_node("research_for_advice", research_for_advice)
@@ -210,7 +226,7 @@ def build_workflow_graph() -> StateGraph:
         "analyze_intent",
         should_route,
         {
-            "recommend_and_present": "recommend_jobs",
+            "recommend_and_present": "formulate_retrieval_query",
             "reformulate": "reformulate_query",
             "analyze_selection": "load_selected_job",
             "qa": "contextual_qa",
@@ -219,6 +235,7 @@ def build_workflow_graph() -> StateGraph:
     )
     
     # 1. 추천 경로: recommend -> present -> generate_final_answer -> record_history -> END
+    workflow.add_edge("formulate_retrieval_query", "recommend_jobs")
     workflow.add_edge("recommend_jobs", "present_candidates")
     workflow.add_edge("present_candidates", "generate_final_answer")
     
@@ -229,7 +246,8 @@ def build_workflow_graph() -> StateGraph:
     workflow.add_edge("get_preparation_advice", "generate_final_answer") # 최종적으로 종합
 
     # 2.1 다른 회사를 찾고 심층분석
-    workflow.add_edge("reformulate_query", "recommend_jobs")
+    workflow.add_edge("reformulate_query", "formulate_retrieval_query")
+
 
     # 4. 후속 질문 경로: contextual_qa -> generate_final_answer
     workflow.add_edge("contextual_qa", "generate_final_answer")
