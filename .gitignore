@@ -197,3 +197,4 @@ frontend/*
 !frontend/README.md
 
 memory/chat_histories_json
+.claude/
