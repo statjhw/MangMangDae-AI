@@ -1,0 +1,39 @@
+# Core FastAPI dependencies
+fastapi==0.116.1
+uvicorn==0.24.0
+python-multipart==0.0.6
+python-jose==3.3.0
+python-dotenv==1.0.0
+pydantic==2.11.7
+pydantic-settings==2.10.1
+
+# HTTP and async
+aiohttp==3.12.14
+httpx==0.28.1
+httpcore==1.0.9
+anyio==3.7.1
+
+# LangChain core (without heavy ML dependencies)
+langchain-core==0.3.72
+langchain-openai==0.3.28
+langchain-community==0.3.27
+langchain-text-splitters==0.3.8
+
+# Database and storage
+boto3==1.39.12
+redis==6.2.0
+opensearch-py==3.0.0
+
+# Pinecone (lightweight)
+pinecone-client==3.2.2
+
+# Essential utilities
+requests==2.32.4
+python-dateutil==2.9.0.post0
+pyyaml==6.0.2
+jinja2==3.1.6
+click==8.1.8
+
+# Authentication and security
+cryptography==45.0.5
+certifi==2025.7.9
