@@ -1,8 +1,7 @@
-[providers]
-python = "3.10"
+providers = ["python"]
 
-[build]
-buildCommand = "pip install --upgrade pip && pip install -r requirements.txt"
+[phases.install]
+cmds = ["pip install --upgrade pip", "pip install -r requirements.txt"]
 
 [start]
 cmd = "cd Backend && python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT"
