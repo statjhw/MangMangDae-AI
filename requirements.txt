@@ -32,7 +32,6 @@ tiktoken>=0.9.0
 # 임베딩 및 트랜스포머
 sentence-transformers>=4.1.0
 transformers>=4.52.2
-torch>=2.7.0
 huggingface-hub>=0.31.4
 tokenizers>=0.21.1
 safetensors>=0.5.3
@@ -49,9 +48,6 @@ tqdm>=4.67.1
 pyyaml>=6.0.2
 jsonschema>=4.23.0
 
-# 워크플로우 관리
-apache-airflow>=2.10.5
-
 # 데이터베이스 연결
 redis>=6.2.0
 opensearch-py>=3.0.0
@@ -59,14 +55,6 @@ psycopg2>=2.9.10
 
 # 웹 검색
 tavily-python>=0.7.2
-
-# 테스트 관련 의존성
-pytest>=8.3.5
-pytest-cov>=6.1.1
-pytest-mock>=3.14.0
-pytest-asyncio>=0.26.0
-pytest-xdist>=3.6.1
-pytest-socket>=0.7.0
 
 # 추가 유틸리티
 click>=8.1.8
