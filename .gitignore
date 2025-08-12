@@ -195,3 +195,5 @@ package.json
 frontend/*
 !frontend/src
 !frontend/README.md
+
+memory/chat_histories_json
