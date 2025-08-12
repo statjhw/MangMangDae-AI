@@ -73,7 +73,7 @@ const PieChart = ({
           <Legend 
             verticalAlign="bottom" 
             height={36}
-            formatter={(value) => (
+            formatter={(value, entry) => (
               <span style={{ color: '#374151' }}>{value}</span>
             )}
           />

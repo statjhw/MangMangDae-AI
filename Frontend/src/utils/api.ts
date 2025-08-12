@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { UserInfo, Statistics, WorkflowResponse, ApiResponse, UserStatResponse, SessionInfo, SessionStats } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const API_BASE_URL = '/api';
 
 // axios 인스턴스 생성
 const api = axios.create({
@@ -116,7 +116,7 @@ api.interceptors.response.use(
         processQueue(renewError, null);
         
         // Only dispatch session expiry event for actual failures that affect user experience
-        if ((renewError as any)?.response?.status !== 401 && (renewError as any)?.response?.status !== 403) {
+        if (renewError.response?.status !== 401 && renewError.response?.status !== 403) {
           window.dispatchEvent(new CustomEvent('sessionExpired', {
             detail: { message: 'Session management error occurred' }
           }));

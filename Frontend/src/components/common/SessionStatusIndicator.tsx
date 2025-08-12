@@ -18,7 +18,7 @@ const SessionStatusIndicator = ({
   const [, setSessionInfo] = useState<SessionInfo | null>(null);
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('active');
   const [timeLeft, setTimeLeft] = useState<number>(0);
-  const [, setIsVisible] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
 
   // Fetch session info periodically
   useEffect(() => {

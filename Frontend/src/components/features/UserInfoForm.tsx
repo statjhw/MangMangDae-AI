@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useForm, Controller } from 'react-hook-form';
-import { User, GraduationCap, Briefcase, MessageSquare, Sparkles, Code, Zap, ArrowRight } from 'lucide-react';
+import { User, GraduationCap, Briefcase, MapPin, Settings, MessageSquare, Sparkles, Code, Zap, ArrowRight } from 'lucide-react';
 import Input from '../common/Input';
 import Select from '../common/Select';
+import Textarea from '../common/Textarea';
 import Button from '../common/Button';
 import { 
   EDUCATION_STATUS_OPTIONS, 
@@ -45,7 +46,7 @@ const UserInfoForm = ({ onSubmit, loading = false }: UserInfoFormProps) => {
   const [step, setStep] = useState(1);
   const [availableJobs, setAvailableJobs] = useState<Array<{value: string, label: string}>>([]);
   
-  const { handleSubmit, watch, setValue, control, formState: { errors } } = useForm<FormData>();
+  const { register, handleSubmit, watch, setValue, control, formState: { errors } } = useForm<FormData>();
   
   const watchedValues = watch();
   const hasExperience = watchedValues.career?.hasExperience === '있음';
@@ -53,8 +54,8 @@ const UserInfoForm = ({ onSubmit, loading = false }: UserInfoFormProps) => {
 
   // 직군 선택시 직무 목록 업데이트
   useEffect(() => {
-    if (selectedJobCategory && (jobSubCategories as any)[selectedJobCategory]) {
-      const jobs = Object.entries((jobSubCategories as any)[selectedJobCategory]).map(([, label]) => ({
+    if (selectedJobCategory && jobSubCategories[selectedJobCategory]) {
+      const jobs = Object.entries(jobSubCategories[selectedJobCategory]).map(([value, label]) => ({
         value: label as string,
         label: label as string
       }));

@@ -190,13 +190,11 @@ export_var.sh
 frontend/node_modules/
 
 package-lock.json
+package.json
 
-# Frontend build outputs and dependencies
-Frontend/node_modules/
-Frontend/dist/
-Frontend/.vite/
-
-# Keep all other Frontend files for deployment
+frontend/*
+!frontend/src
+!frontend/README.md
 
 memory/chat_histories_json
 .claude/
