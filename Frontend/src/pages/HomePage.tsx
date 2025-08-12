@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Brain, TrendingUp, Users, Zap, ArrowRight, Star } from 'lucide-react';
+import { Brain, TrendingUp, Users, ArrowRight, Star } from 'lucide-react';
 import UserInfoForm from '../components/features/UserInfoForm';
 import ChatSection from '../components/features/ChatSection';
 import UserStatSection from '../components/features/UserStatSection';

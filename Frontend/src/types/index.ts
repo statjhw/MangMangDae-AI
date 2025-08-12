@@ -102,3 +102,36 @@ export interface UserStatResponse {
     [techName: string]: number;
   };
 }
+
+// 세션 정보 타입
+export interface SessionInfo {
+  session_id: string;
+  created_at: string;
+  last_activity: string;
+  expires_at: string;
+  message_count: number;
+  is_active: boolean;
+  time_until_expiry: number; // seconds until expiry
+}
+
+// 세션 통계 타입
+export interface SessionStats {
+  total_sessions: number;
+  active_sessions: number;
+  total_messages: number;
+  avg_session_duration: number;
+  most_recent_activity: string;
+}
+
+// 세션 상태 타입
+export type SessionStatus = 'active' | 'expired' | 'renewed' | 'reset';
+
+// 컨텍스트 리셋 이유 타입
+export type ResetReason = 'manual' | 'message_limit' | 'topic_shift' | 'reset_phrase' | 'session_renewal';
+
+// 컨텍스트 리셋 이벤트 타입
+export interface ContextResetEvent {
+  reason: ResetReason;
+  timestamp: Date;
+  message?: string;
+}

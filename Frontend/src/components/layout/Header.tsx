@@ -1,7 +1,11 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Brain, Sparkles } from 'lucide-react';
+import { Brain, Sparkles, BarChart3 } from 'lucide-react';
+import SessionStatsModal from '../common/SessionStatsModal';
 
 const Header = () => {
+  const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
+  
   return (
     <motion.header 
       className="sticky top-0 z-50 glass-effect border-b border-white/20"
@@ -52,16 +56,42 @@ const Header = () => {
             </motion.a>
           </nav>
 
-          {/* CTA 버튼 */}
-          <motion.button
-            className="btn-primary hidden sm:block"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            시작하기
-          </motion.button>
+          {/* Actions */}
+          <div className="flex items-center space-x-3">
+            <motion.button
+              onClick={() => setIsStatsModalOpen(true)}
+              className="p-2 text-secondary-600 hover:text-primary-600 hover:bg-white/10 rounded-lg transition-colors duration-200"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              title="세션 통계"
+            >
+              <BarChart3 className="w-5 h-5" />
+            </motion.button>
+            
+            <motion.button
+              className="btn-primary hidden sm:block"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => {
+                const formSection = document.getElementById('form');
+                if (formSection) {
+                  formSection.scrollIntoView({ behavior: 'smooth' });
+                } else {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+              }}
+            >
+              시작하기
+            </motion.button>
+          </div>
         </div>
       </div>
+      
+      {/* Session Stats Modal */}
+      <SessionStatsModal 
+        isOpen={isStatsModalOpen}
+        onClose={() => setIsStatsModalOpen(false)}
+      />
     </motion.header>
   );
 };

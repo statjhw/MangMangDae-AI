@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { UserInfo, Statistics, WorkflowResponse, ApiResponse, UserStatResponse } from '../types';
+import { UserInfo, Statistics, WorkflowResponse, ApiResponse, UserStatResponse, SessionInfo, SessionStats } from '../types';
 
 const API_BASE_URL = '/api';
 
@@ -7,6 +7,7 @@ const API_BASE_URL = '/api';
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 180000, // 타임아웃을 3분(180,000ms)으로 늘림
+  withCredentials: true, // Always include cookies for session management
   headers: {
     'Content-Type': 'application/json',
   },
@@ -15,21 +16,121 @@ const api = axios.create({
 // 요청 인터셉터
 api.interceptors.request.use(
   (config) => {
-    console.log('API Request:', config.method?.toUpperCase(), config.url);
+    console.log('🚀 API Request:', config.method?.toUpperCase(), config.url);
+    // Log session cookie presence
+    const sessionCookie = document.cookie.split(';').find(c => c.trim().startsWith('session_id='));
+    if (sessionCookie) {
+      console.log('🍪 Session cookie present:', sessionCookie.split('=')[1]);
+    } else {
+      console.log('❌ No session cookie found');
+    }
     return config;
   },
   (error) => {
+    console.error('❌ Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
 
+// Session renewal flag to prevent multiple renewal attempts
+let isRenewing = false;
+let failedQueue: Array<{ resolve: (value?: any) => void; reject: (reason?: any) => void }> = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach(({ resolve, reject }) => {
+    if (error) {
+      reject(error);
+    } else {
+      resolve(token);
+    }
+  });
+  
+  failedQueue = [];
+};
+
 // 응답 인터셉터
 api.interceptors.response.use(
   (response) => {
-    console.log('API Response:', response.status, response.config.url);
+    console.log('✅ API Response:', response.status, response.config.url);
+    
+    // Check for session renewal indicators in response headers
+    if (response.headers['x-session-renewed']) {
+      console.log('🔄 Session was automatically renewed by backend');
+      // Session renewal handled silently in background - no user notification needed
+    }
+    
+    // Check for new session cookie
+    const setCookieHeader = response.headers['set-cookie'];
+    if (setCookieHeader && setCookieHeader.includes('session_id=')) {
+      console.log('🍪 New session cookie set by backend');
+    }
+    
     return response;
   },
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // Handle session expiry (401/403) with automatic renewal
+    if ((error.response?.status === 401 || error.response?.status === 403) && !originalRequest._retry) {
+      console.log('🔑 Session expired (401/403), attempting renewal...');
+      
+      if (isRenewing) {
+        console.log('⏳ Already renewing session, queuing request...');
+        // If already renewing, queue this request
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then(() => {
+          console.log('🔄 Retrying queued request after renewal');
+          return api(originalRequest);
+        }).catch((err) => {
+          console.error('❌ Queued request failed:', err);
+          return Promise.reject(err);
+        });
+      }
+      
+      originalRequest._retry = true;
+      isRenewing = true;
+      console.log('🔄 Starting session renewal process...');
+      
+      try {
+        // Attempt session renewal by making a simple request to a different endpoint to avoid loops
+        // Use a minimal endpoint that doesn't require session validation
+        console.log('🔧 Attempting session renewal via /v1/session/stats...');
+        await api.get('/v1/session/stats');
+        
+        console.log('✅ Session renewal successful!');
+        // Session renewed successfully, process queued requests
+        processQueue(null, 'renewed');
+        
+        // Session renewal handled silently - no need to notify user about background session management
+        console.log('Session renewed successfully in background');
+        
+        console.log('🔄 Retrying original request after renewal...');
+        // Retry the original request
+        return api(originalRequest);
+        
+      } catch (renewError) {
+        console.error('❌ Session renewal failed:', renewError);
+        
+        // Session renewal failed, process queue with error
+        processQueue(renewError, null);
+        
+        // Only dispatch session expiry event for actual failures that affect user experience
+        if (renewError.response?.status !== 401 && renewError.response?.status !== 403) {
+          window.dispatchEvent(new CustomEvent('sessionExpired', {
+            detail: { message: 'Session management error occurred' }
+          }));
+        } else {
+          console.log('Session could not be renewed, but handled silently');
+        }
+        
+        return Promise.reject(renewError);
+      } finally {
+        isRenewing = false;
+        console.log('🏁 Session renewal process completed');
+      }
+    }
+    
     console.error('API Error:', error.response?.status, error.message);
     return Promise.reject(error);
   }
@@ -61,9 +162,7 @@ export const getUserStat = async (userInfo: UserInfo): Promise<UserStatResponse>
       }
     };
 
-    const response = await api.post<UserStatResponse>('/v1/user_stat', requestData, { 
-      withCredentials: true 
-    });
+    const response = await api.post<UserStatResponse>('/v1/user_stat', requestData);
     
     console.log('User stat response:', response.data);
     return response.data;
@@ -92,9 +191,7 @@ export const runWorkflow = async (userInfo: UserInfo): Promise<WorkflowResponse>
     console.log('Sending chat request:', JSON.stringify(requestData, null, 2));
 
     // 2. 새로운 엔드포인트로 요청을 보내고, 세션을 위해 쿠키를 함께 전송합니다.
-    const response = await api.post('/v1/chat', requestData, {
-      withCredentials: true, 
-    });
+    const response = await api.post('/v1/chat', requestData);
 
     console.log('Chat response:', response.data);
     
@@ -142,6 +239,47 @@ export const searchUniversities = async (query: string): Promise<string[]> => {
   } catch (error) {
     console.error('Failed to search universities:', error);
     return [];
+  }
+};
+
+// Session management endpoints
+export const resetConversation = async (): Promise<ApiResponse<{ message: string }>> => {
+  try {
+    const response = await api.post<ApiResponse<{ message: string }>>('/v1/chat/reset', {});
+    return response.data;
+  } catch (error) {
+    console.error('Failed to reset conversation:', error);
+    throw error;
+  }
+};
+
+export const getSessionInfo = async (): Promise<SessionInfo> => {
+  try {
+    const response = await api.get<SessionInfo>('/v1/session/info');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to get session info:', error);
+    throw error;
+  }
+};
+
+export const getSessionStats = async (): Promise<SessionStats> => {
+  try {
+    const response = await api.get<SessionStats>('/v1/session/stats');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to get session stats:', error);
+    throw error;
+  }
+};
+
+export const clearSession = async (): Promise<ApiResponse<{ message: string }>> => {
+  try {
+    const response = await api.delete<ApiResponse<{ message: string }>>('/v1/session/clear');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to clear session:', error);
+    throw error;
   }
 };
 
