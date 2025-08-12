@@ -58,6 +58,6 @@ class RedisConnect:
 
 if __name__ == "__main__":
     rc = RedisConnect()
-    session_id = "10"  # 저장할 때 쓴 세션 ID (예: WorkFlow/main.py에서 user_id=10)
+    session_id = "10"  
     state = rc.load_state(session_id)
     print(state)
