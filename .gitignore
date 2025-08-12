@@ -190,7 +190,6 @@ export_var.sh
 frontend/node_modules/
 
 package-lock.json
-package.json
 
 frontend/*
 !frontend/src
