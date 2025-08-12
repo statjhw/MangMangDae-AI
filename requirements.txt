@@ -1,52 +1,49 @@
 # 환경 설정
-python-dotenv>=1.1.0
+python-dotenv==1.0.1
 
 # AWS 서비스
-boto3>=1.38.19
+boto3==1.35.0
 
 # 웹 프레임워크
-fastapi>=0.116.1
-starlette>=0.47.2
+fastapi==0.115.0
+starlette==0.38.0
+uvicorn==0.30.0
 
 # LangChain 생태계
-langchain>=0.3.25
-langchain-openai>=0.3.17
-langchain-core>=0.3.60
-langchain-text-splitters>=0.3.8
-langchain-community>=0.3.24
-langchain-pinecone>=0.2.6
-langchain-huggingface>=0.2.0
-langgraph>=0.4.5
+langchain==0.3.0
+langchain-openai==0.2.0
+langchain-core==0.3.0
+langchain-text-splitters==0.3.0
+langchain-community==0.3.0
+langchain-pinecone==0.2.0
+langgraph==0.2.0
 
 # 벡터 데이터베이스
-pinecone>=6.0.2
-pinecone-plugin-interface>=0.0.7
+pinecone-client==5.0.0
 
 # 데이터 검증 및 모델
-pydantic>=2.11.4
+pydantic==2.9.0
 
 # OpenAI 및 언어 모델
-openai>=1.79.0
-tiktoken>=0.9.0
+openai==1.50.0
+tiktoken==0.7.0
 
-# 임베딩 및 트랜스포머
-sentence-transformers>=4.1.0
-transformers>=4.52.2
-huggingface-hub>=0.31.4
-tokenizers>=0.21.1
-safetensors>=0.5.3
+# 임베딩 및 트랜스포머 (CPU 버전)
+sentence-transformers==3.1.0
 
 # 유틸리티
-python-dateutil>=2.9.0.post0
-tavily-python>=0.7.2
-numpy>=2.0.2
-scipy>=1.13.1
-scikit-learn>=1.6.1
-tqdm>=4.67.1
+python-dateutil==2.9.0
+tavily-python==0.5.0
+numpy==1.26.0
+tqdm==4.66.0
 
 # 데이터 처리
-pyyaml>=6.0.2
-jsonschema>=4.23.0
+pyyaml==6.0.2
+jsonschema==4.23.0
+
+# HTTP 클라이언트
+httpx==0.27.0
+requests==2.32.0
 
 # 데이터베이스 연결
 redis>=6.2.0
