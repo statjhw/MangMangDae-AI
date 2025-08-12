@@ -544,15 +544,17 @@ def record_history_tool(state: Dict[str, Any]) -> Dict[str, Any]:
         state["chat_history"][-1]["assistant"] = final_answer
     
             
-    # 2. 대화 턴 길이에 따른 요약 
-    if state.get("conversation_turn", 0) % 3 == 0 and state.get("conversation_turn", 0) > 0:
+    # 2. 대화 턴 길이에 따른 요약 (더 관대하게 변경: 5턴마다)
+    if state.get("conversation_turn", 0) % 5 == 0 and state.get("conversation_turn", 0) > 0:
         logger.info("Summarizing conversation history...")
         chat_history_str = "\n".join([f"User: {msg.get('user', '')}\nAssistant: {msg.get('assistant', '')}" for msg in state.get("chat_history", [])])
         summary_input = {"summary": state.get("summary", ""), "new_lines": chat_history_str}
         new_summary = summary_memory_chain.invoke(summary_input).content
         state["summary"] = new_summary
-        # state["chat_history"] = [] # 요약 후 현재 대화 내용은 비워줌
-        logger.info(f"Conversation summarized and history cleared.")
+        # 요약 후 대화 내용을 완전히 비우지 않고 최근 2개 정도는 유지
+        if len(state.get("chat_history", [])) > 2:
+            state["chat_history"] = state["chat_history"][-2:]
+        logger.info(f"Conversation summarized and recent history preserved.")
 
     # 이 도구는 state를 직접 수정했으므로, 변경된 state 자체를 반환
     return state
