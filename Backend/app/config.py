@@ -1,4 +1,3 @@
-import os
 from pydantic_settings import BaseSettings
 from typing import Optional
 
@@ -40,13 +39,35 @@ class Settings(BaseSettings):
     
     # App Settings
     debug: bool = False
-    cors_origins: list[str] = [
-        "https://mangmangdae-ai.vercel.app",
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-    ]
+    frontend_url: Optional[str] = None
+    
+    @property
+    def cors_origins(self) -> list[str]:
+        """백엔드가 허용할 프론트엔드 도메인들"""
+        origins = [
+            "http://localhost:3000",
+            "http://localhost:3001", 
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:3001",
+            "http://localhost:5173",  # Vite 기본 포트
+            "http://127.0.0.1:5173",
+        ]
+        
+        # Vercel 배포 도메인 추가
+        vercel_domains = [
+            "https://*.vercel.app",
+            "https://*.vercel.app",
+        ]
+        origins.extend(vercel_domains)
+        
+        # 프로덕션 프론트엔드 URL 추가
+        if self.frontend_url:
+            origins.append(self.frontend_url)
+            # https 버전도 추가
+            if self.frontend_url.startswith("http://"):
+                origins.append(self.frontend_url.replace("http://", "https://"))
+        
+        return origins
     
     class Config:
         env_file = ".env"

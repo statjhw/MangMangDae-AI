@@ -3,13 +3,20 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# uvicorn으로 실행 시 프로젝트 루트를 인식할 수 있도록 경로를 추가합니다.
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
-from Backend.app.middleware.middleware import EnhancedSessionMiddleware
-from Backend.app.routers import chat as chat_router
-from Backend.app.routers import user_stat as user_stat_router
-from Backend.app.config import settings
+# Railway 배포 환경과 로컬 환경 모두 지원
+if os.getenv('RAILWAY_ENVIRONMENT'):
+    # Railway 환경에서는 Backend 폴더가 루트
+    from app.middleware.middleware import EnhancedSessionMiddleware
+    from app.routers import chat as chat_router
+    from app.routers import user_stat as user_stat_router
+    from app.config import settings
+else:
+    # 로컬 환경에서는 프로젝트 루트 경로 추가
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    from Backend.app.middleware.middleware import EnhancedSessionMiddleware
+    from Backend.app.routers import chat as chat_router
+    from Backend.app.routers import user_stat as user_stat_router
+    from Backend.app.config import settings
 
 app = FastAPI(
     title="MangMangDae AI API",
