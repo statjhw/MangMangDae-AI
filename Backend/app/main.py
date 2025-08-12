@@ -3,20 +3,12 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Railway 배포 환경과 로컬 환경 모두 지원
-if os.getenv('RAILWAY_ENVIRONMENT'):
-    # Railway 환경에서는 Backend 폴더가 루트
-    from app.middleware.middleware import EnhancedSessionMiddleware
-    from app.routers import chat as chat_router
-    from app.routers import user_stat as user_stat_router
-    from app.config import settings
-else:
-    # 로컬 환경에서는 프로젝트 루트 경로 추가
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    from Backend.app.middleware.middleware import EnhancedSessionMiddleware
-    from Backend.app.routers import chat as chat_router
-    from Backend.app.routers import user_stat as user_stat_router
-    from Backend.app.config import settings
+# uvicorn으로 실행 시 프로젝트 루트를 인식할 수 있도록 경로를 추가합니다.
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from Backend.app.middleware.middleware import EnhancedSessionMiddleware
+from Backend.app.routers import chat as chat_router
+from Backend.app.routers import user_stat as user_stat_router
 
 app = FastAPI(
     title="MangMangDae AI API",
@@ -25,9 +17,18 @@ app = FastAPI(
 )
 
 # CORS (Cross-Origin Resource Sharing) 설정
+# 프론트엔드 주소 (예: http://localhost:3000)에서의 요청을 허용합니다.
+origins = [
+    "http://localhost",
+    "http://localhost:3000",
+    "http://localhost:3001",  # Add frontend port 3001
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",  # Add frontend port 3001
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=origins,
     allow_credentials=True, # 쿠키를 포함한 요청을 허용합니다.
     allow_methods=["*"],    # 모든 HTTP 메소드를 허용합니다.
     allow_headers=["*"],    # 모든 HTTP 헤더를 허용합니다.

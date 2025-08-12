@@ -1,5 +1,6 @@
 import os
 import sys
+import torch
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from DB.opensearch import OpenSearchDB
@@ -15,10 +16,10 @@ def get_embedding_model():
         print("Initializing embedding model for hybrid search...")
         _embedding_model = HuggingFaceEmbeddings(
             model_name="intfloat/multilingual-e5-large",
-            model_kwargs={'device':'cpu'},
+            model_kwargs={'device': 'cuda' if torch.cuda.is_available() else 'cpu'},
             encode_kwargs={'normalize_embeddings': True}
         )
-        print(f"✅ Embedding model initialized on {'cpu'}")
+        print(f"✅ Embedding model initialized on {'cuda' if torch.cuda.is_available() else 'cpu'}")
     return _embedding_model
 
 def build_hybrid_query(user_input: dict, top_k: int = 5, exclude_ids: list = None) -> dict:

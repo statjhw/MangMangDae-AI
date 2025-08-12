@@ -1,13 +1,12 @@
 import axios from 'axios';
 import { UserInfo, Statistics, WorkflowResponse, ApiResponse, UserStatResponse, SessionInfo, SessionStats } from '../types';
-import { config } from '../config/environment';
 
-const API_BASE_URL = config.apiBaseUrl;
+const API_BASE_URL = '/api';
 
 // axios 인스턴스 생성
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: config.timeout,
+  timeout: 180000, // 타임아웃을 3분(180,000ms)으로 늘림
   withCredentials: true, // Always include cookies for session management
   headers: {
     'Content-Type': 'application/json',
