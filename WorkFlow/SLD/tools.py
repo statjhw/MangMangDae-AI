@@ -4,10 +4,11 @@ import json
 import os
 from langchain_core.tools import tool
 from langsmith import traceable
-from WorkFlow.Util.utils import advice_chain, summary_memory_chain, final_answer_chain, intent_analysis_chain, contextual_qa_prompt_chain, reformulate_query_chain, web_search_planner_chain, hyde_reformulation_chain
+from WorkFlow.Util.utils import advice_chain, summary_memory_chain, final_answer_chain, intent_analysis_chain, contextual_qa_prompt_chain, reformulate_query_chain, web_search_planner_chain, hyde_reformulation_chain, explain_term_chain
 from Retriever.hybrid_retriever import hybrid_search, _format_hit_to_text
 from WorkFlow.config import get_tavily_tool, RateLimitError
 import re
+from datetime import datetime
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -480,6 +481,34 @@ def contextual_qa_tool(state: Dict[str, Any]) -> Dict[str, Any]:
         return {"final_answer": "후속 질문에 답변하는 중 오류가 발생했습니다."}
     
 
+# 새로 추가: 용어/내용 설명 도구
+@tool
+@traceable(name="explain_term_tool")
+def explain_term_tool(state: Dict[str, Any]) -> Dict[str, Any]:
+    """직전 AI 답변을 바탕으로 사용자가 요청한 용어나 내용을 간단히 설명합니다."""
+    try:
+        chat_history = state.get("chat_history", [])
+        question = state.get("user_input", {}).get("candidate_question", "")
+        last_answer = ""
+
+        # parse_input가 현재 턴을 추가하므로, 직전 턴의 assistant 내용을 사용
+        if isinstance(chat_history, list) and len(chat_history) >= 2:
+            last_answer = chat_history[-2].get("assistant", "")
+        elif isinstance(chat_history, list) and len(chat_history) == 1:
+            last_answer = chat_history[-1].get("assistant", "")
+        else:
+            last_answer = state.get("final_answer", "") or ""
+
+        answer = explain_term_chain.invoke({
+            "last_answer": last_answer,
+            "question": question
+        }).content
+
+        return {"final_answer": answer}
+    except Exception as e:
+        logger.error(f"Error in explain_term_tool: {e}", exc_info=True)
+        return {"final_answer": "용어를 설명하는 중 오류가 발생했습니다."}
+
 @tool
 @traceable(name="generate_final_answer_tool")
 def generate_final_answer_tool(state: Dict[str, Any]) -> Dict[str, str]:
@@ -524,6 +553,11 @@ def generate_final_answer_tool(state: Dict[str, Any]) -> Dict[str, str]:
             # contextual_qa_tool에서 이미 생성한 답변을 최종 답변으로 그대로 사용합니다.
             final_answer = state.get("final_answer", "죄송합니다. 해당 질문에 대한 답변을 찾지 못했습니다.")
         
+        # 유형 5: 직전 답변에 대한 용어/내용 설명 요청
+        elif intent == "explanation_request":
+            # explain_term_tool에서 생성한 답변을 사용
+            final_answer = state.get("final_answer", "설명을 생성하는 데 실패했습니다.")
+        
         else:
             final_answer = "죄송합니다. 요청을 이해하지 못했습니다. 다시 말씀해주세요."
             
@@ -556,3 +590,114 @@ def record_history_tool(state: Dict[str, Any]) -> Dict[str, Any]:
 
     # 이 도구는 state를 직접 수정했으므로, 변경된 state 자체를 반환
     return state
+
+
+# ===== 테스트 호환용 레거시 함수들 (단위/통합 테스트를 위한 얇은 래퍼) =====
+
+def parse_input(state: Dict[str, Any]) -> Dict[str, Any]:
+    """테스트에서 기대하는 형식으로 입력을 파싱하고, 대화 상태를 업데이트합니다."""
+    user_input = state.get("user_input", {})
+    question = user_input.get("candidate_question", "")
+    if not question:
+        raise Exception("candidate_question is empty")
+
+    parsed_input = {
+        "education": user_input.get("candidate_major", ""),
+        "desired_job": user_input.get("candidate_interest", ""),
+        "experience": user_input.get("candidate_career", ""),
+        "question": question,
+    }
+
+    chat_history = state.get("chat_history", [])
+    conversation_turn = state.get("conversation_turn", 0)
+    chat_history.append({
+        "user": question,
+        "assistant": "",
+        "timestamp": datetime.now().isoformat()
+    })
+
+    updated = {
+        **state,
+        "parsed_input": parsed_input,
+        "chat_history": chat_history,
+        "conversation_turn": conversation_turn + 1,
+    }
+    return updated
+
+
+def recommend_jobs(state: Dict[str, Any]) -> Dict[str, Any]:
+    """검색/리트리버 결과를 테스트 포맷으로 변환합니다."""
+    tool_result = recommend_jobs_tool.func(state)
+    job_list = tool_result.get("job_list", [])
+
+    job_recommendations = []
+    selected_job = None
+    selected_job_data = None
+
+    for job in job_list:
+        job_recommendations.append(job.get("document"))
+    if job_list:
+        selected_job = job_list[0].get("document")
+        selected_job_data = job_list[0].get("source_data")
+
+    updated = {
+        **state,
+        **tool_result,
+        "job_recommendations": job_recommendations,
+        "selected_job": selected_job,
+        "selected_job_data": selected_job_data,
+    }
+    return updated
+
+
+def get_company_info(state: Dict[str, Any]) -> Dict[str, Any]:
+    """웹 검색으로 회사 정보를 조회하여 테스트 포맷으로 반환합니다."""
+    tool_result = search_company_info_tool.func(state)
+    company_info = tool_result.get("search_result")
+    updated = {**state, **tool_result, "company_info": company_info}
+    return updated
+
+
+def get_salary_info(state: Dict[str, Any]) -> Dict[str, Any]:
+    """급여 정보를 테스트에서 기대하는 키로 제공합니다. 실제 데이터가 없으면 요약 메시지를 반환합니다."""
+    selected_job_data = state.get("selected_job_data", {})
+    # 샘플: selected_job_data 내에 급여 관련 필드가 있다면 활용
+    salary_info = selected_job_data.get("salary") or selected_job_data.get("compensation") or "급여 정보가 제공되지 않았습니다."
+    return {**state, "salary_info": salary_info}
+
+
+def get_preparation_advice(state: Dict[str, Any]) -> Dict[str, Any]:
+    """준비 조언을 생성하여 테스트 포맷으로 반환합니다."""
+    tool_result = get_preparation_advice_tool.func(state)
+    updated = {**state, **tool_result}
+    return updated
+
+
+def summarize_results(state: Dict[str, Any]) -> Dict[str, Any]:
+    """테스트 호환을 위한 최종 요약 생성: 간단한 종합 문장을 만들고 chat_history에 기록합니다."""
+    parsed = state.get("parsed_input", {})
+    selected_job = state.get("selected_job")
+    company_info = state.get("company_info")
+    salary_info = state.get("salary_info")
+    preparation_advice = state.get("preparation_advice")
+
+    final_answer_parts = []
+    if parsed:
+        final_answer_parts.append(f"질문: {parsed.get('question', '')}")
+    if selected_job:
+        final_answer_parts.append("선택된 공고 요약 제공")
+    if company_info:
+        final_answer_parts.append("회사 정보 확보")
+    if salary_info is not None:
+        final_answer_parts.append("급여 정보 확인")
+    if preparation_advice:
+        final_answer_parts.append("준비 조언 포함")
+
+    final_answer = " | ".join(final_answer_parts) or "요약 정보를 생성하지 못했습니다."
+
+    chat_history = state.get("chat_history", [])
+    if chat_history:
+        chat_history[-1]["assistant"] = final_answer
+
+    updated = {**state, "final_answer": final_answer, "chat_history": chat_history}
+    return updated

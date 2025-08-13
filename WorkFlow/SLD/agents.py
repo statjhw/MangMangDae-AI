@@ -97,6 +97,11 @@ def contextual_qa(state: GraphState) -> GraphState:
     result = contextual_qa_tool.func(state)
     return {**state, **result}
 
+@traceable(name="explain_term_node")
+def explain_term(state: GraphState) -> GraphState:
+    """직전 답변에 대한 설명 제공 노드"""
+    result = explain_term_tool.func(state)
+    return {**state, **result}
 
 @traceable(name="present_candidates_node")
 def present_candidates(state: GraphState) -> GraphState:
@@ -148,13 +153,15 @@ def should_route(state: GraphState) -> str:
     if intent == "new_search":
         return "reformulate"
 
+    if intent == "explanation_request":
+        return "explain"
+
     # 특정 직무가 선택된 상태에서만 후속 질문(qa) 경로로 안내합니다.
     if intent == "follow_up_qa" and job_is_selected:
         return "qa"
     
     # 그 외의 경우 (예: 직무 선택 없이 후속 질문)는 부적절한 요청으로 간주
     return "dismiss"
-
 
 @traceable(name="recommend_jobs_node")
 def recommend_jobs(state: GraphState) -> GraphState:
@@ -213,6 +220,7 @@ def build_workflow_graph() -> StateGraph:
     workflow.add_node("research_for_advice", research_for_advice)
     workflow.add_node("get_preparation_advice", get_preparation_advice)
     workflow.add_node("contextual_qa", contextual_qa)
+    workflow.add_node("explain_term", explain_term)
     workflow.add_node("generate_final_answer", generate_final_answer) 
     workflow.add_node("record_history", record_history) 
     
@@ -230,6 +238,7 @@ def build_workflow_graph() -> StateGraph:
             "reformulate": "reformulate_query",
             "analyze_selection": "load_selected_job",
             "qa": "contextual_qa",
+            "explain": "explain_term",
             "dismiss": "generate_final_answer"  # chit_chat은 바로 답변 생성으로
         }
     )
@@ -251,6 +260,9 @@ def build_workflow_graph() -> StateGraph:
 
     # 4. 후속 질문 경로: contextual_qa -> generate_final_answer
     workflow.add_edge("contextual_qa", "generate_final_answer")
+
+    # 5. 설명 요청 경로: explain_term -> generate_final_answer
+    workflow.add_edge("explain_term", "generate_final_answer")
     
     # 모든 경로는 최종적으로 답변 생성 및 기록 후 종료
     workflow.add_edge("generate_final_answer", "record_history")
@@ -287,13 +299,8 @@ def run_job_advisor_workflow(current_input: Dict[str, Any], previous_state: Dict
         # 준비된 상태로 그래프 실행
         final_state = workflow_graph.invoke(state_to_run)
         logger.info("Workflow completed successfully")
-        
-        # 중요: 특정 값만 추출하지 않고, 다음 턴을 위해 'final_state' 전체를 반환합니다.
-        return final_state
 
+        return final_state
     except Exception as e:
-        logger.error(f"워크플로우 실행 오류: {str(e)}")
-        import traceback
-        logger.error(traceback.format_exc())
-        # 오류 발생 시, 다음 턴에 영향을 주지 않도록 이전 상태를 그대로 반환할 수 있습니다.
-        return {**previous_state, "error": str(e), "final_answer": "오류가 발생했습니다. 다시 시도해주세요."}
+        logger.error(f"Workflow execution error: {e}", exc_info=True)
+        return {"error": str(e)}
