@@ -192,7 +192,6 @@ Frontend/node_modules/
 package-lock.json
 
 
-frontend/*
 !frontend/src
 !frontend/README.md
 
