@@ -17,14 +17,18 @@ app = FastAPI(
 )
 
 # CORS (Cross-Origin Resource Sharing) 설정
-# 프론트엔드 주소 (예: http://localhost:3000)에서의 요청을 허용합니다.
-origins = [
+# 환경변수 FRONTEND_ORIGINS 에서 허용할 오리진을 읽습니다(쉼표 구분).
+# 예: FRONTEND_ORIGINS="https://mmd-rose.vercel.app,https://mmd-statjhws-projects.vercel.app"
+_default_origins = [
     "http://localhost",
     "http://localhost:3000",
-    "http://localhost:3001",  # Add frontend port 3001
+    "http://localhost:3001",
     "http://127.0.0.1:3000",
-    "http://127.0.0.1:3001",  # Add frontend port 3001
+    "http://127.0.0.1:3001",
 ]
+
+_origins_env = os.getenv("FRONTEND_ORIGINS", "").strip()
+origins = [o.strip() for o in _origins_env.split(",") if o.strip()] if _origins_env else _default_origins
 
 app.add_middleware(
     CORSMiddleware,
