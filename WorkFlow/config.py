@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 from pinecone import Pinecone
 from langchain_openai import ChatOpenAI
-from langchain_tavily import TavilySearchResults
+from langchain_community.tools.tavily_search import TavilySearchResults
 from langsmith import Client
 
 # 환경 변수 로드
