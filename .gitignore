@@ -197,3 +197,7 @@ package-lock.json
 
 memory/chat_histories_json
 .claude/
+
+Frontend/vercel.json
+.vercel
+Frontend/.vercel
