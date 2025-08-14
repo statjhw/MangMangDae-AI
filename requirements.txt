@@ -38,7 +38,7 @@ torch==2.3.1
 
 # 유틸리티
 python-dateutil>=2.9.0.post0
-numpy>=2.0.2
+numpy==1.26.4
 scipy>=1.13.1
 scikit-learn>=1.6.1
 tqdm>=4.67.1
