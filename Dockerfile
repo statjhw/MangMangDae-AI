@@ -24,7 +24,13 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 
 # Install Python dependencies
+# 1) Upgrade pip
+# 2) Install CPU-only PyTorch first to avoid pulling CUDA wheels
+# 3) Install sentence-transformers without extra deps (we provide transformers/torch separately)
+# 4) Install remaining requirements from requirements.txt
 RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.3.1 && \
+    pip install --no-cache-dir sentence-transformers==2.7.0 && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy the entire project (needed for Backend module imports)
