@@ -35,9 +35,10 @@ def get_reranker_model():
     global _reranker_model
     if _reranker_model is None:
         print("Initializing reranker model...")
+        # 경량 모델로 변경하여 메모리 사용량과 로딩 시간을 줄임
         _reranker_model = CrossEncoder(
-            'BAAI/bge-reranker-base',
-            max_length=512,
+            'cross-encoder/ms-marco-MiniLM-L-6-v2',
+            max_length=256,
             device='cpu'
         )
         print(f"✅ Reranker model initialized on 'cpu'")
@@ -140,11 +141,15 @@ def hybrid_search(user_profile: dict, top_k: int = 5, exclude_ids: list = None) 
     # 리랭킹에 사용할 질문 생성
     rerank_query = f"{user_profile.get('candidate_interest', '')} {user_profile.get('candidate_question', '')}"
 
-    # 리랭커에 입력할 [질문, 문서] 쌍 만들기
+    # 리랭커에 입력할 [질문, 문서] 쌍 만들기 (과도한 길이 방지)
     sentence_pairs = [[rerank_query, _format_hit_to_text(hit.get('_source', {}))] for hit in initial_hits]
+    # 안전 상한: 메모리 급증 방지
+    if len(sentence_pairs) > 50:
+        sentence_pairs = sentence_pairs[:50]
 
     # 리랭킹 점수 계산
-    rerank_scores = reranker.predict(sentence_pairs, show_progress_bar=False)
+    # 배치 사이즈를 작게 설정해 메모리 사용을 제어
+    rerank_scores = reranker.predict(sentence_pairs, show_progress_bar=False, batch_size=4)
 
     # 리랭킹 점수와 기존 문서를 묶기
     reranked_results = list(zip(rerank_scores, initial_hits))

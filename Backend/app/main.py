@@ -9,6 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 from Backend.app.middleware.middleware import EnhancedSessionMiddleware
 from Backend.app.routers import chat as chat_router
 from Backend.app.routers import user_stat as user_stat_router
+from Retriever.hybrid_retriever import get_embedding_model, get_reranker_model
 
 app = FastAPI(
     title="MangMangDae AI API",
@@ -48,3 +49,15 @@ app.include_router(user_stat_router.router, prefix="/api/v1", tags=["User Stat"]
 @app.get("/", tags=["Root"])
 def read_root():
     return {"message": "MangMangDae AI API에 오신 것을 환영합니다."} 
+
+
+# Warm up heavy models at startup to avoid first-request latency
+@app.on_event("startup")
+async def warmup_models():
+    try:
+        print("🚀 Warming up models (embedding + reranker)...")
+        get_embedding_model()
+        get_reranker_model()
+        print("✅ Model warmup complete.")
+    except Exception as e:
+        print(f"⚠️ Model warmup failed: {e}")
