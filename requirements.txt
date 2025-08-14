@@ -22,6 +22,7 @@ langchain-text-splitters>=0.3.8
 langchain-community>=0.3.24
 langchain-pinecone>=0.2.6
 langchain-huggingface>=0.2.0
+langchain-tavily>=0.1.0
 langgraph>=0.4.5
 
 # 벡터 데이터베이스
@@ -45,7 +46,6 @@ safetensors>=0.5.3
 
 # 유틸리티
 python-dateutil>=2.9.0.post0
-tavily-python>=0.7.2
 numpy>=2.0.2
 scipy>=1.13.1
 scikit-learn>=1.6.1
@@ -61,10 +61,8 @@ apache-airflow>=2.10.5
 # 데이터베이스 연결
 redis>=6.2.0
 opensearch-py>=3.0.0
-psycopg2>=2.9.10
-
-# 웹 검색
-tavily-python>=0.7.2
+psycopg2-binary>=2.9.10
+requests-aws4auth>=1.2.3
 
 # 테스트 관련 의존성
 pytest>=8.3.5
