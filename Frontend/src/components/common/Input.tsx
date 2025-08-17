@@ -74,7 +74,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
           </div>
         )}
         
-        <motion.input
+        <input
           ref={ref}
           type={inputType}
           className={clsx(
@@ -90,7 +90,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
           )}
           value={inputValue}
           onChange={handleInputChange}
-          onFocus={() => setShowSuggestions(suggestions.length > 0 && inputValue.length > 0)}
+          onFocus={() => setShowSuggestions(suggestions.length > 0 && String(inputValue).length > 0)}
           onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
           {...props}
         />

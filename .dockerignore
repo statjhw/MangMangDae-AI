@@ -1,0 +1,58 @@
+# Python
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.Python
+**/env
+**/venv
+**/ENV
+**/env.bak
+**/venv.bak
+**/.venv
+
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+**/*.md
+
+# Build files
+Dockerfile
+.dockerignore
+
+# Testing
+**/.pytest_cache
+**/.coverage
+**/.nyc_output
+
+# Node.js (Frontend)
+Frontend/node_modules
+Frontend/dist
+Frontend/.next
+
+# Logs
+**/*.log
+**/logs
+
+# OS
+**/.DS_Store
+**/Thumbs.db
+
+# IDE
+.vscode
+.idea
+**/*.swp
+**/*.swo
+
+# Temporary files
+**/tmp
+**/temp
+
+# ChromeDriver
+chromedriver-mac-arm64
+
+# Memory/Cache
+memory/

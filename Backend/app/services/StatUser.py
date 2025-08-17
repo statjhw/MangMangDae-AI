@@ -8,9 +8,20 @@ import json
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 from DB.opensearch import OpenSearchDB
 
-# 프로젝트 루트 경로를 기준으로 파일 경로 설정
+# 프로젝트 루트 및 서비스 디렉터리 기준으로 파일 경로 설정
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-MAPPING_TABLE_PATH = os.path.join(PROJECT_ROOT, "frontend", "mapping_table.json")
+SERVICE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# 1) 같은 디렉터리에 있는 파일 우선
+# 2) 대문자 Frontend 경로
+# 3) 소문자 frontend 경로(과거 호환)
+_CANDIDATE_PATHS = [
+    os.path.join(PROJECT_ROOT, "Frontend", "mapping_table.json"),
+    os.path.join(PROJECT_ROOT, "frontend", "mapping_table.json"),
+]
+
+# 존재하는 경로를 선택, 없으면 1번 경로로 설정(추후 에러 메시지로 안내)
+MAPPING_TABLE_PATH = next((p for p in _CANDIDATE_PATHS if os.path.exists(p)), _CANDIDATE_PATHS[0])
 
 class StatUser:
     def __init__(self):
@@ -40,7 +51,7 @@ class StatUser:
         if not interest:
             return {"message": "관심 분야 정보가 없습니다."}
         ## 역 인덱스 생성해서 하는 것이 더 효과적
-        with open(MAPPING_TABLE_PATH, "r") as f:
+        with open(MAPPING_TABLE_PATH, "r", encoding="utf-8") as f:
             mapping_table = json.load(f)
             for parent_key, child_dict in mapping_table.items():
                 for child_key, child_value in child_dict.items():
