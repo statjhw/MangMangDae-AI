@@ -38,7 +38,7 @@ def start_chat_session():
     사용자와의 대화 세션을 시작하고 상태를 관리합니다.
     """
     # 사용자 ID는 실제 앱에서는 로그인 등을 통해 동적으로 할당됩니다.
-    user_id = 11
+    user_id = 18
     
     # 기본 사용자 프로필 정보
     base_user_info = {

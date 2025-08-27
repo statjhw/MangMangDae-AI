@@ -148,7 +148,7 @@ def present_candidates_tool(state: Dict[str, Any]) -> Dict[str, str]:
     
     response_lines.append("\n더 자세히 알아보고 싶은 공고의 번호를 알려주세요. 해당 공고에 대한 심층 분석을 제공해 드립니다.")
     # 선택 대기 상태 진입
-    return {"final_answer": "\n".join(response_lines), "awaiting_selection": True}
+    return {"final_answer": "\n".join(response_lines), "awaiting_selection": True, "awaiting_analysis_confirmation": False}
 
 
 @tool
@@ -614,54 +614,47 @@ def contextual_qa_tool(state: Dict[str, Any]) -> Dict[str, Any]:
 @tool
 @traceable(name="generate_final_answer_tool")
 def generate_final_answer_tool(state: Dict[str, Any]) -> Dict[str, str]:
-    """대화의 intent에 따라 각기 다른 방식으로 최종 답변을 생성합니다."""
-    intent = state.get("intent", "chit_chat")
-    logger.info(f"Generating final answer for intent: '{intent}'")
-    final_answer = ""
-    
-    try:
-        # 유형 1: 단순 인사 또는 부적절한 질문
-        if intent == "chit_chat":
-            final_answer = "죄송합니다. 저는 채용 관련 질문에만 답변을 드릴 수 있습니다. 궁금하신 직무나 회사에 대해 말씀해주세요."
+    """현재 GraphState를 기반으로 사용자에게 보여줄 최종 답변을 결정하고 포맷팅합니다."""
+    logger.info(f"Generating final answer based on current state. Last intent was: '{state.get('intent')}'")
 
-        # 유형 2: '처음 검색' 또는 '다른거 찾아줘' 후, 후보 목록을 제시하는 경우
-        elif intent in ["initial_search", "new_search"]:
-            # present_candidates_tool에서 생성된 답변("...번호를 알려주세요.")을 최종 답변으로 사용
-            final_answer = state.get("final_answer", "추천 목록을 생성하는 데 실패했습니다.")
-        
-        # 유형 3: 사용자가 특정 회사를 '선택'한 후, 모든 정보를 종합한 심층 분석 결과를 제공하는 경우
-        elif intent == "select_job":
-            user_input = state.get("user_input", {})
-            user_profile_str = (
-                f"학력: {user_input.get('candidate_major', '')}, "
-                f"경력: {user_input.get('candidate_career', '')}, "
-                f"희망 직무: {user_input.get('candidate_interest', '')}, "
-                f"기술 스택: {', '.join(user_input.get('candidate_tech_stack', []))}, "
-                f"희망 근무지역: {user_input.get('candidate_location', '')}"
-            )
-            question = state.get("user_input", {}).get("question", "")
-            
-            # 모든 분석(회사정보, 준비조언 등)을 종합하여 최종 답변 생성
-            final_answer = final_answer_chain.invoke({
-                "user_profile": user_profile_str,
-                "question": question,
-                "selected_job": state.get("selected_job", ""),
-                "search_result": state.get("search_result", ""),
-                "preparation_advice": state.get("preparation_advice", "")
-            }).content
+    # 유형 1: 심층 분석 데이터(`preparation_advice`)가 준비된 경우, 최종 분석 리포트를 생성합니다.
+    if state.get("preparation_advice"):
+        logger.info("Preparation advice found. Generating the final deep-dive analysis report.")
+        user_input = state.get("user_input", {})
+        user_profile_str = (
+            f"학력: {user_input.get('candidate_major', '')}, "
+            f"경력: {user_input.get('candidate_career', '')}, "
+            f"희망 직무: {user_input.get('candidate_interest', '')}, "
+            f"기술 스택: {', '.join(user_input.get('candidate_tech_stack', []))}, "
+            f"희망 근무지역: {user_input.get('candidate_location', '')}"
+        )
+        # 사용자의 초기 질문 대신, 분석 요청 자체를 맥락으로 삼습니다.
+        question = f"'{state.get('current_company')}' 회사와 선택된 직무에 대한 심층 분석 요청"
 
-        # 유형 4: 심층 분석이 끝난 후, 추가적인 '후속 질문'에 답변하는 경우
-        elif intent == "follow_up_qa":
-            # contextual_qa_tool에서 이미 생성한 답변을 최종 답변으로 그대로 사용합니다.
-            final_answer = state.get("final_answer", "죄송합니다. 해당 질문에 대한 답변을 찾지 못했습니다.")
-        
-        else:
-            final_answer = "죄송합니다. 요청을 이해하지 못했습니다. 다시 말씀해주세요."
-            
-    except Exception as e:
-        logger.error(f"Final answer generation error: {e}", exc_info=True)
-        final_answer = "답변을 생성하는 중 오류가 발생했습니다."
+        final_answer = final_answer_chain.invoke({
+            "user_profile": user_profile_str,
+            "question": question,
+            "selected_job": state.get("selected_job", ""),
+            "search_result": state.get("search_result", ""),
+            "preparation_advice": state.get("preparation_advice", "")
+        }).content
+        return {"final_answer": final_answer}
 
+    # 유형 2: 이전 노드에서 이미 final_answer를 생성한 경우, 그대로 사용(pass-through)합니다.
+    # (예: 추천 목록 제시, 심층 분석 제안, 후속 질문 답변, 행동 재요청 등)
+    if state.get("final_answer"):
+        logger.info("A pre-generated final_answer was found in the state. Passing it through.")
+        return {"final_answer": state.get("final_answer")}
+
+    # 유형 3: 위 두 경우에 해당하지 않는 chit-chat 또는 예외 상황 처리
+    if state.get("intent") == "chit_chat":
+        final_answer = "죄송합니다. 저는 채용 관련 질문에만 답변을 드릴 수 있습니다. 궁금하신 직무나 회사에 대해 말씀해주세요."
+    else:
+        # 이 경우는 발생하면 안 되지만, 안전장치로 남겨둡니다.
+        final_answer = "죄송합니다. 요청을 처리하는 중 문제가 발생했습니다. 다시 시도해주세요."
+        logger.warning("generate_final_answer_tool was called without 'preparation_advice' or a pre-generated 'final_answer'.")
+
+    return {"final_answer": final_answer}
     return {"final_answer": final_answer}
 
 @tool
@@ -787,7 +780,7 @@ def expert_research_tool(state: Dict[str, Any]) -> Dict[str, str]:
         if not company_name:
             return {"search_result": "공고에서 회사 이름을 찾지 못했습니다."}
         
-        question = f"{company_name} {question}"
+        question = f"{company_name} 기업 {question}"
         result = perplexity_tool.invoke(question)
         
         # Perplexity의 답변을 최종 답변으로 설정

@@ -29,8 +29,6 @@ client = Client(api_key=langsmith_api_key)
 
 def last_write_reducer(left: Any, right: Any) -> Any:
     """어떤 키에 대한 업데이트가 충돌하더라도, 항상 최신 값(right)으로 덮어씁니다."""
-    if right is None:
-        return left
     return right
 
 # 상태 타입 정의
@@ -337,8 +335,8 @@ def build_workflow_graph() -> StateGraph:
     
     # 2. 선택 후 심층 분석 경로: load -> get_company_info -> ... -> generate_final_answer 
     workflow.add_edge("load_selected_job", "show_and_confirm")
+    workflow.add_edge("show_and_confirm", "generate_final_answer")
     
-    workflow.add_edge("show_and_confirm", "confirmation_router")
     
     workflow.add_conditional_edges(
         "confirmation_router",
@@ -350,6 +348,8 @@ def build_workflow_graph() -> StateGraph:
             "request_further_action": "request_further_action" # 잡담 -> 재요청
         }
     )
+
+    workflow.add_edge("request_further_action", "generate_final_answer")
 
     workflow.add_edge("get_company_info", "research_for_advice") # get_company_info 다음에 research 추가
     workflow.add_edge("research_for_advice", "get_preparation_advice") # research 결과를 advice 생성에 사용
