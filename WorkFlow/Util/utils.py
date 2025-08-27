@@ -1,6 +1,6 @@
 from typing import Dict, List, Any, Callable
 from WorkFlow.config import get_llm
-from Template.prompts import actionable_advice_prompt, summary_memory_prompt, final_answer_prompt, intent_analysis_prompt, contextual_qa_prompt, reformulate_query_prompt, web_search_planner_prompt, hyde_reformulation_prompt
+from Template.prompts import actionable_advice_prompt, summary_memory_prompt, final_answer_prompt, intent_analysis_prompt, contextual_qa_prompt, reformulate_query_prompt, web_search_planner_prompt, hyde_reformulation_prompt, company_context_planner_prompt, confirmation_router_prompt
 
 # llm 객체를 함수로 받아옴
 llm = get_llm()
@@ -22,7 +22,6 @@ class RunInvokeAdapter:
         return self.runnable.invoke({"input": data})
 
 # llm chain (각 체인에 run 메소드 제공)
-#advice_chain = RunInvokeAdapter(preparation_advice_prompt | llm)
 advice_chain = RunInvokeAdapter(actionable_advice_prompt | llm)
 final_answer_chain = RunInvokeAdapter(final_answer_prompt | llm)
 summary_memory_chain = RunInvokeAdapter(summary_memory_prompt | llm)
@@ -31,6 +30,10 @@ contextual_qa_prompt_chain =  RunInvokeAdapter(contextual_qa_prompt | llm)
 reformulate_query_chain = RunInvokeAdapter(reformulate_query_prompt | llm)
 web_search_planner_chain = RunInvokeAdapter(web_search_planner_prompt | llm)
 hyde_reformulation_chain = RunInvokeAdapter(hyde_reformulation_prompt | llm)
+company_context_planner_chain = RunInvokeAdapter(company_context_planner_prompt | llm)
+confirmation_router_chain = RunInvokeAdapter(confirmation_router_prompt | llm)
+
+
 
 # Graph 상태 타입 정의
 class GraphState(Dict):

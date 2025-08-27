@@ -9,6 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from WorkFlow.SLD.agents import run_job_advisor_workflow
 from WorkFlow.Util.user_agent import generate_random_persona, generate_next_question
 from DB.redis_connect import RedisConnect
+import multiprocessing as mp
 
 redis_connect = RedisConnect()
 
@@ -37,7 +38,7 @@ def start_chat_session():
     사용자와의 대화 세션을 시작하고 상태를 관리합니다.
     """
     # 사용자 ID는 실제 앱에서는 로그인 등을 통해 동적으로 할당됩니다.
-    user_id = 40
+    user_id = 11
     
     # 기본 사용자 프로필 정보
     base_user_info = {
@@ -153,5 +154,6 @@ def run_simulation(user_id: int, num_turns: int = 7):
     print("===== 시뮬레이션 종료 =====")
 
 if __name__ == "__main__":
+    mp.set_start_method("spawn", force=True)
     start_chat_session()
     #run_simulation(user_id=411)

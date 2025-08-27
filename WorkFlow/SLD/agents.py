@@ -9,9 +9,11 @@ from WorkFlow.SLD.tools import (
     search_company_info_tool, get_preparation_advice_tool, 
     record_history_tool, generate_final_answer_tool, analyze_intent_tool, contextual_qa_tool,
     present_candidates_tool, load_selected_job_tool, recommend_jobs_tool, reformulate_query_tool,
-    research_for_advice_tool, formulate_retrieval_query_tool
+    research_for_advice_tool, formulate_retrieval_query_tool, request_selection_tool, reset_selection_tool,
+    resolve_company_context_tool, show_full_posting_and_confirm_tool, expert_research_tool, confirmation_router_tool, request_further_action_tool
 )
 import re
+
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -25,32 +27,43 @@ langsmith_project = os.getenv("LANGSMITH_PROJECT", "job_advisor")
 # LangSmith 클라이언트 초기화
 client = Client(api_key=langsmith_api_key)
 
+def last_write_reducer(left: Any, right: Any) -> Any:
+    """어떤 키에 대한 업데이트가 충돌하더라도, 항상 최신 값(right)으로 덮어씁니다."""
+    if right is None:
+        return left
+    return right
+
 # 상태 타입 정의
 class GraphState(TypedDict, total=False):
     # --- 핵심 입력 및 사용자 정보 ---
-    user_input: Dict[str, Any]
-    user_id: int
-    company_name_filter: List[str] # 유저 질문에 회사명이 포함되어 있다면, 회사명 필터링을 위한 리스트
-    
+    user_input: Annotated[Dict[str, Any], last_write_reducer]
+    user_id: Annotated[int, last_write_reducer]
+    company_name_filter: Annotated[List[str], last_write_reducer]
+
     # --- 대화 흐름 및 맥락 관리 ---
-    intent: str
-    chat_history: list
-    conversation_turn: int
-    summary: str # 장기 기억을 위한 대화 요약
+    intent: Annotated[str, last_write_reducer]
+    chat_history: Annotated[list, last_write_reducer]
+    conversation_turn: Annotated[int, last_write_reducer]
+    summary: Annotated[str, last_write_reducer]
+    awaiting_selection: Annotated[bool, last_write_reducer]
+    current_company: Annotated[str, last_write_reducer]
+    company_contexts: Annotated[Dict[str, Any], last_write_reducer]
 
     # --- 채용 공고 관련 상태 ---
-    job_list: List[Dict[str, Any]] # 추천된 공고 목록
-    selected_job: Any     
-    selected_job_data: Dict[str, Any] # 사용자가 선택한 특정 공고
+    job_list: Annotated[List[Dict[str, Any]], last_write_reducer]
+    selected_job: Annotated[Any, last_write_reducer]
+    selected_job_data: Annotated[Dict[str, Any], last_write_reducer]
 
     # --- 심층 분석 정보 ---
-    search_result: str       # 웹 검색을 통해 얻은 회사 정보
-    interview_questions_context: str
-    company_culture_context: str
-    preparation_advice: str # 면접 및 준비 조언
+    awaiting_analysis_confirmation: Annotated[bool, last_write_reducer]
+    search_result: Annotated[str, last_write_reducer]
+    interview_questions_context: Annotated[str, last_write_reducer]
+    company_culture_context: Annotated[str, last_write_reducer]
+    preparation_advice: Annotated[str, last_write_reducer]
 
     # --- 최종 결과 ---
-    final_answer: str       # 사용자에게 보여줄 최종 답변
+    final_answer: Annotated[str, last_write_reducer]
+    next_action: Annotated[str, last_write_reducer]
 
 # 노드 함수 정의 - 각 도구를 래핑
 @traceable(name="parse_input_node")
@@ -122,6 +135,28 @@ def formulate_retrieval_query(state: GraphState) -> GraphState:
     result = formulate_retrieval_query_tool.func(state)
     return {**state, **result}
 
+@traceable(name="request_selection_node")
+def request_selection(state: GraphState) -> GraphState:
+    result = request_selection_tool.func(state)
+    return {**state, **result}
+
+@traceable(name="reset_selection_node")
+def reset_selection(state: GraphState) -> GraphState:
+    result = reset_selection_tool.func(state)
+    return {**state, **result}
+
+@traceable(name="resolve_company_context_node")
+def resolve_company_context(state: GraphState) -> GraphState:
+    result = resolve_company_context_tool.func(state)
+    return {**state, **result}
+
+
+@traceable(name="confirmation_router_node")
+def confirmation_router(state: GraphState) -> GraphState:
+    """LLM을 사용하여 사용자의 확인 의도를 라우팅하는 노드"""
+    result = confirmation_router_tool.func(state)
+    return {**state, **result}
+
 # 조건부 분기 함수 수정
 @traceable(name="should_route_edge")
 def should_route(state: GraphState) -> str:
@@ -130,11 +165,33 @@ def should_route(state: GraphState) -> str:
     job_list_exists = bool(state.get("job_list")) # 이전 턴에 추천 목록이 있었는지 확인
     job_is_selected = bool(state.get("selected_job"))
     user_question = state.get("user_input", {}).get("candidate_question", "")
+    awaiting_selection = state.get("awaiting_selection", False)
 
-    if job_list_exists and not job_is_selected and re.search(r'\d+', user_question):
-        logger.info("Override: Detected a number selection. Forcing route to 'analyze_selection'.")
-        state['intent'] = 'select_job' 
-        return "analyze_selection"
+    # 심층분석 여부 확인 상태일 때의 분기 로직
+    if state.get("awaiting_analysis_confirmation"):
+        return "route_confirmation"
+
+    # 강제 선택 모드: 추천 목록 이후에는 선택만 허용
+    if job_list_exists and awaiting_selection and not job_is_selected:
+        if re.search(r"\d+", user_question):
+            state['intent'] = 'select_job'
+            return "analyze_selection"
+        if any(
+            job.get('source_data', {}).get('company_name') and job.get('source_data', {}).get('company_name') in user_question
+            for job in state.get('job_list', [])
+        ):
+            state['intent'] = 'select_job'
+            return "analyze_selection"
+        
+        elif any(keyword in user_question for keyword in ["다른", "새로운", "new", "다른거", "목록"]):
+            state['intent'] = 'new_search'
+            logger.info("User requested a new search while in selection mode. Routing to reformulate.")
+            return "reformulate" # 'new_search' 의도와 동일한 경로로 분기
+
+        # 3. 위 두 경우에 해당하지 않으면, 선택을 다시 요청
+        else:
+            logger.info("User input is not a valid selection or new search request. Re-prompting.")
+            return "request_selection"
     
     if intent == "chit_chat":
         return "dismiss"
@@ -148,11 +205,9 @@ def should_route(state: GraphState) -> str:
     if intent == "new_search":
         return "reformulate"
 
-    # 특정 직무가 선택된 상태에서만 후속 질문(qa) 경로로 안내합니다.
     if intent == "follow_up_qa" and job_is_selected:
         return "qa"
     
-    # 그 외의 경우 (예: 직무 선택 없이 후속 질문)는 부적절한 요청으로 간주
     return "dismiss"
 
 
@@ -163,9 +218,36 @@ def recommend_jobs(state: GraphState) -> GraphState:
     result = recommend_jobs_tool.func(state)  # .func를 사용하여 원본 함수에 직접 접근
     return {**state, **result}
 
+
+@traceable(name="show_and_confirm_node")
+def show_and_confirm(state: GraphState) -> GraphState:
+    """선택된 공고 전체 내용과 함께 심층 분석 여부를 묻는 노드"""
+    result = show_full_posting_and_confirm_tool.func(state)
+    return {**state, **result}
+
+@traceable(name="request_further_action_node")
+def request_further_action(state: GraphState) -> GraphState:
+    """쓸모없는 질문에 대해 행동을 다시 요청하는 노드"""
+    # 이 노드는 플래그를 변경하지 않고 메시지만 생성합니다.
+    result = request_further_action_tool.func(state)
+    return {**state, **result}
+
+def route_after_confirmation(state: GraphState) -> str:
+    """`confirmation_router_node`의 결과를 바탕으로 다음 경로를 결정합니다."""
+    next_action = state.get("next_action", "request_further_action")
+    logger.info(f"Routing to '{next_action}' after LLM confirmation.")
+    return next_action
+
+@traceable(name="expert_research_node")
+def expert_research(state: GraphState) -> GraphState:
+    """Perplexity를 사용한 전문가 리서치 노드"""
+    result = expert_research_tool.func(state)
+    return {**state, **result}
+
 @traceable(name="get_company_info_node")
 def get_company_info(state: GraphState) -> GraphState:
     """회사 정보 검색 노드 (웹 검색)"""
+    state["awaiting_analysis_confirmation"] = False # 심층 분석이 시작되므로 플래그를 초기화
     result = search_company_info_tool.func(state)
     return {**state, **result}
 
@@ -182,7 +264,7 @@ def get_preparation_advice(state: GraphState) -> GraphState:
     return {**state, **result}
 
 @traceable(name="generate_final_answer_node")
-def generate_final_answer(state: GraphState) -> GraphState: # 함수 이름을 final_answer -> generate_final_answer로 변경
+def generate_final_answer(state: GraphState) -> GraphState: 
     """최종 답변 생성 노드"""
     result = generate_final_answer_tool.func(state)
     return {**state, **result}
@@ -206,9 +288,15 @@ def build_workflow_graph() -> StateGraph:
     workflow.add_node("present_candidates", present_candidates) 
     workflow.add_node("load_selected_job", load_selected_job) 
     workflow.add_node("recommend_jobs", recommend_jobs)
+    workflow.add_node("show_and_confirm", show_and_confirm)
+    workflow.add_node("confirmation_router", confirmation_router)  
+    workflow.add_node("expert_research", expert_research) # Perplexity 에이전트 노드
+    workflow.add_node("request_further_action", request_further_action)
     workflow.add_node("reformulate_query", reformulate_query)
     workflow.add_node("formulate_retrieval_query", formulate_retrieval_query)
-    #workflow.add_node("verify_job_relevance", verify_job_relevance)
+    workflow.add_node("request_selection", request_selection)
+    workflow.add_node("reset_selection", reset_selection)
+    workflow.add_node("resolve_company_context", resolve_company_context)
     workflow.add_node("get_company_info", get_company_info)
     workflow.add_node("research_for_advice", research_for_advice)
     workflow.add_node("get_preparation_advice", get_preparation_advice)
@@ -221,26 +309,48 @@ def build_workflow_graph() -> StateGraph:
     
     # 엣지 연결
     workflow.add_edge("parse_input", "analyze_intent")
+    # 의도 분석 후 현재 회사/비교 대상 해석
+    workflow.add_edge("analyze_intent", "resolve_company_context")
 
     workflow.add_conditional_edges(
-        "analyze_intent",
+        "resolve_company_context",
         should_route,
         {
-            "recommend_and_present": "formulate_retrieval_query",
-            "reformulate": "reformulate_query",
+            "recommend_and_present": "reset_selection",
+            "reformulate": "reset_selection",
             "analyze_selection": "load_selected_job",
+            "route_confirmation": "confirmation_router",
             "qa": "contextual_qa",
-            "dismiss": "generate_final_answer"  # chit_chat은 바로 답변 생성으로
+            "dismiss": "generate_final_answer",
+            "request_selection": "request_selection"
         }
     )
     
+    
+    # reset 이후 흐름 연결
+    workflow.add_edge("reset_selection", "formulate_retrieval_query")
+
     # 1. 추천 경로: recommend -> present -> generate_final_answer -> record_history -> END
     workflow.add_edge("formulate_retrieval_query", "recommend_jobs")
     workflow.add_edge("recommend_jobs", "present_candidates")
     workflow.add_edge("present_candidates", "generate_final_answer")
     
     # 2. 선택 후 심층 분석 경로: load -> get_company_info -> ... -> generate_final_answer 
-    workflow.add_edge("load_selected_job", "get_company_info")
+    workflow.add_edge("load_selected_job", "show_and_confirm")
+    
+    workflow.add_edge("show_and_confirm", "confirmation_router")
+    
+    workflow.add_conditional_edges(
+        "confirmation_router",
+        route_after_confirmation,
+        {
+            "start_deep_analysis": "get_company_info",      # 동의 -> 심층 분석 시작
+            "reset_and_reformulate": "reset_selection",     # 다른 회사 -> 새 검색 시작
+            "expert_research": "expert_research",           # 추가 질문 -> 전문가 검색
+            "request_further_action": "request_further_action" # 잡담 -> 재요청
+        }
+    )
+
     workflow.add_edge("get_company_info", "research_for_advice") # get_company_info 다음에 research 추가
     workflow.add_edge("research_for_advice", "get_preparation_advice") # research 결과를 advice 생성에 사용
     workflow.add_edge("get_preparation_advice", "generate_final_answer") # 최종적으로 종합
@@ -251,6 +361,7 @@ def build_workflow_graph() -> StateGraph:
 
     # 4. 후속 질문 경로: contextual_qa -> generate_final_answer
     workflow.add_edge("contextual_qa", "generate_final_answer")
+    workflow.add_edge("expert_research", "generate_final_answer")
     
     # 모든 경로는 최종적으로 답변 생성 및 기록 후 종료
     workflow.add_edge("generate_final_answer", "record_history")
