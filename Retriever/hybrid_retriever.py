@@ -1,200 +1,133 @@
 import os
-import sys
+import json
+import logging
+from typing import Tuple, List, Dict
+from dotenv import load_dotenv
 
-# 리랭킹
-from sentence_transformers import CrossEncoder
+# 환경변수 로드
+load_dotenv()
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from DB.opensearch import OpenSearchDB
-from langchain_huggingface import HuggingFaceEmbeddings
+try:
+    import boto3
+except ImportError:
+    print("❌ boto3가 설치되지 않았습니다. pip install boto3를 실행하세요.")
+    boto3 = None
 
-# --- 전역 모델 변수 ---
-# 기존 전역 변수
-_embedding_model = None
+# 로깅 설정
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# 리랭킹 모델을 위한 전역 변수
-_reranker_model = None
+# 설정값
+LAMBDA_FUNCTION_NAME = os.environ.get('RETRIEVER_LAMBDA_FUNCTION', 'MangMangDae-Retriever')
+print(LAMBDA_FUNCTION_NAME)
+AWS_REGION = os.environ.get('AWS_REGION', 'ap-northeast-2')
+print(AWS_REGION)
+AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID_LAMBDA')
+print(AWS_ACCESS_KEY_ID)
+AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY_LAMBDA')
+print(AWS_SECRET_ACCESS_KEY)
 
-# --- 모델 로딩 함수 ---
-def get_embedding_model():
-    """임베딩 모델을 초기화하고 반환합니다 (싱글톤 패턴)"""
-    global _embedding_model
-    if _embedding_model is None:
-        print("Initializing embedding model for hybrid search...")
-        _embedding_model = HuggingFaceEmbeddings(
-            model_name="intfloat/multilingual-e5-large",
-            model_kwargs={'device': 'cpu'},
-            encode_kwargs={'normalize_embeddings': True}
-        )
-        print(f"✅ Embedding model initialized on 'cpu'")
-    return _embedding_model
-
-# ▼▼▼▼▼ 리랭킹 모델을 불러오는 함수 ▼▼▼▼▼
-def get_reranker_model():
-    """CrossEncoder 리랭커 모델을 초기화하고 반환합니다 (싱글톤 패턴)"""
-    global _reranker_model
-    if _reranker_model is None:
-        print("Initializing reranker model...")
-        # 경량 모델로 변경하여 메모리 사용량과 로딩 시간을 줄임
-        _reranker_model = CrossEncoder(
-            'cross-encoder/ms-marco-MiniLM-L-6-v2',
-            max_length=256,
-            device='cpu'
-        )
-        print(f"✅ Reranker model initialized on 'cpu'")
-    return _reranker_model
-
-
-# --- 쿼리 생성 및 포맷팅 함수 ---
-def build_hybrid_query(user_input: dict, top_k: int = 5, exclude_ids: list = None) -> dict:
+def hybrid_search(user_profile: dict, top_k: int = 5, exclude_ids: list = None) -> Tuple[List[float], List[str], List[Dict]]:
+    """
+    Lambda 함수를 호출하여 하이브리드 검색을 수행합니다.
+    
+    Args:
+        user_profile (dict): 사용자 프로필 정보
+        top_k (int): 반환할 결과 수
+        exclude_ids (list): 제외할 문서 ID 리스트
+    
+    Returns:
+        Tuple[List[float], List[str], List[Dict]]: (scores, doc_ids, documents)
+    """
+    
     if exclude_ids is None:
         exclude_ids = []
-
-    major = user_input.get("candidate_major", "")
-    interest = user_input.get("candidate_interest", "")
-    career = user_input.get("candidate_career", "")
-    tech_stack = " ".join(user_input.get("candidate_tech_stack", []))
-    location = user_input.get("candidate_location", "")
-    query = user_input.get("candidate_question", "")
-
-    embedding_model = get_embedding_model()
-    query_vector = embedding_model.embed_query(f"query: {query}")
-
-    must_not_clauses = []
-    if exclude_ids:
-        must_not_clauses.append({"ids": {"values": exclude_ids}})
-
-    search_query = {
-        "query": { "bool": {
-                "should": [
-                    { "multi_match": { "query": interest, "fields": ["job_name^3", "title^2", "position_detail"], "boost": 3.0 }},
-                    { "multi_match": { "query": tech_stack, "fields": ["position_detail", "preferred_qualifications", "qualifications"], "boost": 2.5 }},
-                    { "multi_match": { "query": f"{major}", "fields": ["qualifications", "preferred_qualifications"], "boost": 1.5 }},
-                    { "match": {"career": {"query": career, "boost": 1.5}}},
-                    { "match": {"location": {"query": location, "boost": 1.2}}} if location else None,
-                    { "knn": { "content_embedding": { "vector": query_vector, "k": top_k * 2, "boost": 2.0 }}}
-                ],
-                "must_not": must_not_clauses,
-                "minimum_should_match": 1
-            }},
-        "size": top_k,
-        "_source": { "excludes": ["content_embedding"] }
-    }
-    search_query["query"]["bool"]["should"] = [q for q in search_query["query"]["bool"]["should"] if q is not None]
-    return search_query
-
-
-def _format_hit_to_text(hit_source: dict) -> str:
-    if not hit_source:
-        return ""
-    field_order_map = [
-        ('title', '직무'), ('company_name', '회사'), ('job_category', '직무 카테고리'),
-        ('location', '위치'), ('career', '경력'), ('dead_line', '마감일'),
-        ('position_detail', '포지션 상세'), ('main_tasks', '주요 업무'),
-        ('qualifications', '자격 요건'), ('preferred_qualifications', '우대 사항'),
-        ('benefits', '혜택 및 복지'), ('hiring_process', '채용 과정'), ('url', '채용공고 URL')
-    ]
-    lines = ["[document]"]
-    for field_key, display_name in field_order_map:
-        value = hit_source.get(field_key)
-        if value:
-            if field_key in ['main_tasks', 'qualifications', 'preferred_qualifications', 'benefits'] and isinstance(value, list):
-                formatted_value = '\n'.join([f"- {item}" for item in value])
-                lines.append(f"{display_name}:\n{formatted_value}")
-            elif isinstance(value, list):
-                lines.append(f"{display_name}: {', '.join(value)}")
-            else:
-                lines.append(f"{display_name}: {value}")
-    return "\n\n".join(lines)
-
-
-# --- 메인 검색 함수 (리랭킹 로직 추가) ---
-def hybrid_search(user_profile: dict, top_k: int = 5, exclude_ids: list = None) -> tuple[list[float], list[str], list[dict]]:
-    """
-    BM25 + 의미적 검색을 결합한 하이브리드 검색 후, 결과를 리랭킹합니다.
-    """
-    opensearch = OpenSearchDB()
-
-    # ▼▼▼▼▼▼▼▼▼▼ 리랭킹 로직 시작 ▼▼▼▼▼▼▼▼▼▼
-
-    # 1단계: 후보군 확보 (Retrieval) - 리랭킹을 위해 더 많은 후보(top_k * 5)를 가져옴
-    retrieval_k = top_k * 5
-    print(f"🔍 1단계 (Retrieval): OpenSearch에서 후보군 {retrieval_k}개를 검색합니다.")
+    
+    # boto3 설치 확인
+    if boto3 is None:
+        logger.error("boto3가 설치되지 않았습니다.")
+        return [], [], []
+    
+    # AWS 자격 증명 확인
+    if not AWS_ACCESS_KEY_ID or not AWS_SECRET_ACCESS_KEY:
+        logger.error("AWS 자격 증명이 설정되지 않았습니다. .env 파일에 AWS_ACCESS_KEY_ID와 AWS_SECRET_ACCESS_KEY를 설정하세요.")
+        return [], [], []
+    
     try:
-        search_query = build_hybrid_query(user_profile, retrieval_k, exclude_ids)
-        response = opensearch.search(search_query, size=retrieval_k)
-
+        # Lambda 클라이언트 생성
+        lambda_client = boto3.client(
+            'lambda',
+            region_name=AWS_REGION,
+            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY
+        )
+        
+        # 요청 데이터 구성
+        payload = {
+            "body": json.dumps({
+                "user_profile": user_profile,
+                "top_k": top_k,
+                "exclude_ids": exclude_ids
+            }, ensure_ascii=False)
+        }
+        
+        logger.info(f"🚀 Lambda 함수 '{LAMBDA_FUNCTION_NAME}' 호출 중...")
+        
+        # Lambda 함수 호출
+        response = lambda_client.invoke(
+            FunctionName=LAMBDA_FUNCTION_NAME,
+            InvocationType='RequestResponse',
+            Payload=json.dumps(payload, ensure_ascii=False)
+        )
+        
+        # 응답 파싱
+        response_payload = json.loads(response['Payload'].read())
+        
+        # 상태 코드 확인
+        if response_payload.get('statusCode') != 200:
+            error_body = response_payload.get('body', '알 수 없는 오류')
+            try:
+                error_detail = json.loads(error_body)
+                logger.error(f"❌ Lambda 함수 실행 실패: {error_detail}")
+            except:
+                logger.error(f"❌ Lambda 함수 실행 실패: {error_body}")
+            return [], [], []
+        
+        # 성공 응답 데이터 파싱
+        result_data = json.loads(response_payload['body'])
+        
+        scores = result_data.get('scores', [])
+        doc_ids = result_data.get('doc_ids', [])
+        documents = result_data.get('documents', [])
+        
+        logger.info(f"✅ 검색 완료: {len(scores)}개 결과 반환")
+        return scores, doc_ids, documents
+        
     except Exception as e:
-        print(f"❌ 하이브리드 검색 실패: {e}")
+        logger.error(f"❌ Lambda 함수 호출 실패: {e}")
         return [], [], []
 
-    initial_hits = response.get("hits", {}).get("hits", [])
-    if not initial_hits:
-        print("검색 결과가 없습니다.")
-        return [], [], []
-    print(f"✅ 1단계 (Retrieval) 완료: {len(initial_hits)}개의 결과를 가져왔습니다.")
-
-
-    # 2단계: 리랭킹 (Reranking) - 가져온 결과의 순위를 재조정
-    print("\n🔄 2단계 (Reranking): 가져온 결과의 순위를 재조정합니다.")
-    reranker = get_reranker_model()
-    # 리랭킹에 사용할 질문 생성
-    rerank_query = f"{user_profile.get('candidate_interest', '')} {user_profile.get('candidate_question', '')}"
-
-    # 리랭커에 입력할 [질문, 문서] 쌍 만들기 (과도한 길이 방지)
-    sentence_pairs = [[rerank_query, _format_hit_to_text(hit.get('_source', {}))] for hit in initial_hits]
-    # 안전 상한: 메모리 급증 방지
-    if len(sentence_pairs) > 50:
-        sentence_pairs = sentence_pairs[:50]
-
-    # 리랭킹 점수 계산
-    # 배치 사이즈를 작게 설정해 메모리 사용을 제어
-    rerank_scores = reranker.predict(sentence_pairs, show_progress_bar=False, batch_size=4)
-
-    # 리랭킹 점수와 기존 문서를 묶기
-    reranked_results = list(zip(rerank_scores, initial_hits))
-
-    # 새로운 점수 기준으로 내림차순 정렬
-    reranked_results.sort(key=lambda x: x[0], reverse=True)
-
-    # 최종 top_k 개의 결과만 선택
-    final_results = reranked_results[:top_k]
-
-    # 최종 결과 포맷팅
-    scores = [score for score, hit in final_results]
-    documents = [hit.get("_source", {}) for score, hit in final_results]
-    doc_ids = [hit.get("_id", "") for score, hit in final_results]
-
-    print(f"✅ 2단계 (Reranking) 완료: 최종 {len(scores)}개의 결과가 선택되었습니다.")
-    return scores, doc_ids, documents
-    # ▲▲▲▲▲▲▲▲▲▲ 리랭킹 로직 종료 ▲▲▲▲▲▲▲▲▲▲
-
-
-# --- 실행 부분 ---
+# 테스트 코드
 if __name__ == "__main__":
-    base_user_info = {
-        "user_id": 10,
-        "candidate_major": "경영학",
-        "candidate_interest": "서비스 기획자",
-        "candidate_career": "5년",
-        "candidate_tech_stack": [
-            "UX/UI 설계", "데이터 분석", "A/B 테스트", "프로젝트 관리"
-        ],
-        "candidate_location": "서울 강남",
-        "candidate_question": "안녕하세요, 데이터 기반의 의사결정을 중요하게 여기는 성장하는 스타트업에서 서비스 기획자 직무에 적합한 포지션이 있을까요?"
+    # 테스트 데이터
+    test_user_profile = {
+        "candidate_major": "컴퓨터공학",
+        "candidate_interest": "백엔드 개발자", 
+        "candidate_career": "3년",
+        "candidate_tech_stack": ["Python", "Django", "PostgreSQL"],
+        "candidate_location": "서울",
+        "candidate_question": "백엔드 개발 포지션을 찾고 있습니다. Python과 Django를 사용하는 회사를 선호합니다."
     }
-
-    print("\n=== 하이브리드 검색 + 리랭킹 결과 ===")
-    scores, doc_ids, documents = hybrid_search(base_user_info, top_k=5)
-
-    if not scores:
-        print("검색 결과가 없습니다.")
-    else:
+    
+    print("\n=== 하이브리드 검색 테스트 ===")
+    scores, doc_ids, documents = hybrid_search(test_user_profile, top_k=3)
+    
+    if scores:
         for i, (score, doc_id, document) in enumerate(zip(scores, doc_ids, documents), 1):
-            print(f"\n[최종 순위 {i}] Rerank Score: {score:.4f}, 문서 ID: {doc_id}")
-            # print(document) # 전체 문서를 보려면 주석 해제
+            print(f"\n[결과 {i}] 점수: {score:.4f}, ID: {doc_id}")
             print(f"  제목: {document.get('title', '정보 없음')}")
-            print(f"  회사명: {document.get('company_name', '정보 없음')}")
-            print(f"  지역: {document.get('location', '정보 없음')}")
-            print(f"  주요 업무: {document.get('main_tasks', '정보 없음')}")
+            print(f"  회사: {document.get('company_name', '정보 없음')}")
+            print(f"  위치: {document.get('location', '정보 없음')}")
             print("-" * 50)
+    else:
+        print("❌ 검색 결과가 없습니다.")
