@@ -103,6 +103,30 @@ def hybrid_search(user_profile: dict, top_k: int = 5, exclude_ids: list = None) 
         logger.error(f"❌ Lambda 함수 호출 실패: {e}")
         return [], [], []
 
+def _format_hit_to_text(hit_source: dict) -> str:
+    if not hit_source:
+        return ""
+    field_order_map = [
+        ('title', '직무'), ('company_name', '회사'), ('job_category', '직무 카테고리'),
+        ('location', '위치'), ('career', '경력'), ('dead_line', '마감일'),
+        ('position_detail', '포지션 상세'), ('main_tasks', '주요 업무'),
+        ('qualifications', '자격 요건'), ('preferred_qualifications', '우대 사항'),
+        ('benefits', '혜택 및 복지'), ('hiring_process', '채용 과정'), ('url', '채용공고 URL')
+    ]
+    lines = ["[document]"]
+    for field_key, display_name in field_order_map:
+        value = hit_source.get(field_key)
+        if value:
+            if field_key in ['main_tasks', 'qualifications', 'preferred_qualifications', 'benefits'] and isinstance(value, list):
+                formatted_value = '\n'.join([f"- {item}" for item in value])
+                lines.append(f"{display_name}:\n{formatted_value}")
+            elif isinstance(value, list):
+                lines.append(f"{display_name}: {', '.join(value)}")
+            else:
+                lines.append(f"{display_name}: {value}")
+    return "\n\n".join(lines)
+
+    
 # 테스트 코드
 if __name__ == "__main__":
     # 테스트 데이터
