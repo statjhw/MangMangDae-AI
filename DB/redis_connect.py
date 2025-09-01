@@ -41,6 +41,8 @@ class RedisSessionManager:
     def save_session_state(self, session_id: str, state: Dict[str, Any], ttl_type: str = "short"):
         """세션 상태를 적절한 TTL로 저장합니다."""
         try:
+            # 세션 ID를 문자열로 강제 변환 (int 입력 대비)
+            session_id = str(session_id)
             ttl = self.SHORT_TTL if ttl_type == "short" else self.LONG_TTL
             
             # 대화 히스토리 제한
@@ -72,6 +74,8 @@ class RedisSessionManager:
     def load_state(self, session_id: str) -> Optional[Dict[str, Any]]:
         """Redis에서 세션 상태를 불러와 pickle로 역직렬화합니다."""
         try:
+            # 세션 ID를 문자열로 강제 변환 (int 입력 대비)
+            session_id = str(session_id)
             # 새로운 키 형식 시도
             key = f"session:{session_id}"
             serialized_state = self.redis_client.get(key)

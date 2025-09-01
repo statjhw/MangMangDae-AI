@@ -1,5 +1,60 @@
 from langchain.prompts import PromptTemplate
 
+confirmation_router_prompt = PromptTemplate(
+    input_variables=["company_name", "question"],
+    template="""당신은 사용자의 의도를 4가지 중 하나로 분류하는 매우 정교한 AI 라우터입니다.
+사용자는 '{company_name}' 회사에 대한 '포지션 적합도 심층 분석'을 제안받은 상황입니다.
+
+[사용자 답변]
+{question}
+
+---
+[판단 기준]
+1.  사용자가 제안받은 '포지션 적합도 분석'에 대해 **단순히 동의**하는가? -> **start_deep_analysis**
+2.  사용자가 **새로운/다른 회사**를 검색해달라고 하는가? -> **reset_and_reformulate**
+3.  사용자가 **'포지션 적합도'가 아닌, '실적', '전망', '연봉' 등 구체적인 새 주제**에 대해 묻거나 분석을 요청하는가? -> **expert_research**
+4.  위 경우에 해당하지 않는 일상적인 대화인가? -> **request_further_action**
+
+---
+[의도 분류]
+아래 4가지 의도 중 사용자의 답변과 가장 일치하는 하나를 선택하세요.
+오직 아래 4개의 영문 키워드 중 하나만 출력해야 합니다. 다른 설명은 절대 추가하지 마세요.
+
+1.  **start_deep_analysis**: 사용자가 **제안된 심층 분석**에 동의하는 경우. (단순 동의)
+    (예: "네", "좋아요", "분석해주세요", "네 그렇게 해주세요")
+
+2.  **reset_and_reformulate**: 사용자가 '다른 회사'를 찾거나 '새로운 검색'을 원하는 경우.
+    (예: "다른 회사 찾아줘", "이거 말고", "목록 다시 보여줘")
+
+3.  **expert_research**: 사용자가 **제안된 내용 외에, 특정 주제(예: 실적, 전망, 연봉, 문화)에 대해 구체적으로 질문**하거나 분석을 요청하는 경우.
+    (예: "이 회사 연봉은 얼마예요?", "복지는 어떤가요?", "최근 실적에 대해 분석해주세요")
+
+4.  **request_further_action**: 사용자의 답변이 위 3가지에 해당하지 않는 '일상적인 대화'이거나 불분명한 경우.
+    (예: "고마워", "아니", "됐어", "수고하세요")
+
+[분류 결과]
+"""
+)
+
+company_context_planner_prompt = PromptTemplate(
+    input_variables=["current_question", "current_company", "available_companies", "company_contexts"],
+    template="""당신은 사용자의 질문을 분석하여 다른 회사 정보가 필요한지 판단하는 전문가입니다.
+
+현재 상황:
+- 사용자 질문: {current_question}
+- 현재 포커스된 회사: {current_company}
+- 사용 가능한 다른 회사: {available_companies}
+
+판단 기준:
+1. 사용자가 "비교"를 요청하는 경우
+2. 사용자가 "다른 회사는?" 같은 질문을 하는 경우  
+3. 사용자가 "A회사와 B회사 중 어느 쪽이" 같은 비교적 질문을 하는 경우
+4. 사용자가 "B회사도 비슷한가?" 같은 연관 질문을 하는 경우
+
+위 기준에 해당하면 "1", 그렇지 않으면 "0"만 출력하세요.
+
+출력: 0 또는 1"""
+)
 
 # hybrid search에서 knn에 들어가는 입력 쿼리를 생성하는 프롬프트
 # 기존 사용자 정보는 BM25로 매칭했으니, 여기서는 사용자 프로필과 요청을 바탕으로 가상의 채용 공고를 생성

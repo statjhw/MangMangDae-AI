@@ -3,7 +3,11 @@ from dotenv import load_dotenv
 from pinecone import Pinecone
 from langchain_openai import ChatOpenAI
 from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain_perplexity import ChatPerplexity
+
 from langsmith import Client
+
+
 
 # 환경 변수 로드
 load_dotenv(override=True)
@@ -41,6 +45,7 @@ _llm = None
 _pinecone_index = None
 _tavily_tool = None
 _langsmith_client = None
+_perplexity_tool = None  
 
 def get_llm():
     global _llm
@@ -66,6 +71,12 @@ def get_tavily_tool():
     if _tavily_tool is None:
         _tavily_tool = TavilySearchResults(max_results=3)
     return _tavily_tool
+
+def get_perplexity_tool():
+    global _perplexity_tool
+    if _perplexity_tool is None:
+        _perplexity_tool = ChatPerplexity(api_key=os.getenv("PERPLEXITY_API_KEY"))
+    return _perplexity_tool
 
 def get_langsmith_client():
     """LangSmith 클라이언트 객체를 반환"""
