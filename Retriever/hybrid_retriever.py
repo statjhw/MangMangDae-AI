@@ -19,13 +19,9 @@ logger = logging.getLogger(__name__)
 
 # 설정값
 LAMBDA_FUNCTION_NAME = os.environ.get('RETRIEVER_LAMBDA_FUNCTION', 'MangMangDae-Retriever')
-print(LAMBDA_FUNCTION_NAME)
 AWS_REGION = os.environ.get('AWS_REGION', 'ap-northeast-2')
-print(AWS_REGION)
-AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID_LAMBDA')
-print(AWS_ACCESS_KEY_ID)
-AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY_LAMBDA')
-print(AWS_SECRET_ACCESS_KEY)
+AWS_ACCESS_KEY_ID_LAMBDA = os.environ.get('AWS_ACCESS_KEY_ID_LAMBDA')
+AWS_SECRET_ACCESS_KEY_LAMBDA = os.environ.get('AWS_SECRET_ACCESS_KEY_LAMBDA')
 
 def hybrid_search(user_profile: dict, top_k: int = 5, exclude_ids: list = None) -> Tuple[List[float], List[str], List[Dict]]:
     """
@@ -49,7 +45,7 @@ def hybrid_search(user_profile: dict, top_k: int = 5, exclude_ids: list = None) 
         return [], [], []
     
     # AWS 자격 증명 확인
-    if not AWS_ACCESS_KEY_ID or not AWS_SECRET_ACCESS_KEY:
+    if not AWS_ACCESS_KEY_ID_LAMBDA or not AWS_SECRET_ACCESS_KEY_LAMBDA:
         logger.error("AWS 자격 증명이 설정되지 않았습니다. .env 파일에 AWS_ACCESS_KEY_ID와 AWS_SECRET_ACCESS_KEY를 설정하세요.")
         return [], [], []
     
@@ -58,8 +54,8 @@ def hybrid_search(user_profile: dict, top_k: int = 5, exclude_ids: list = None) 
         lambda_client = boto3.client(
             'lambda',
             region_name=AWS_REGION,
-            aws_access_key_id=AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=AWS_SECRET_ACCESS_KEY
+            aws_access_key_id=AWS_ACCESS_KEY_ID_LAMBDA,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY_LAMBDA
         )
         
         # 요청 데이터 구성
