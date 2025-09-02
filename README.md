@@ -24,6 +24,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.116+-green.svg?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-18+-blue.svg?style=flat&logo=react&logoColor=white)](https://reactjs.org/)
 [![AWS DynamoDB](https://img.shields.io/badge/AWS-DynamoDB-orange.svg?style=flat&logo=amazondynamodb&logoColor=white)](https://aws.amazon.com/dynamodb/)
+[![AWS Lambda](https://img.shields.io/badge/AWS-Lambda-orange.svg?style=flat&logo=awslambda&logoColor=white)](https://aws.amazon.com/lambda/)
 [![OpenSearch](https://img.shields.io/badge/OpenSearch-3.0+-blue.svg?style=flat&logo=opensearch&logoColor=white)](https://opensearch.org/)
 [![Redis](https://img.shields.io/badge/Redis-6.2+-red.svg?style=flat&logo=redis&logoColor=white)](https://redis.io/)
 [![LangChain](https://img.shields.io/badge/LangChain-0.3+-green.svg?style=flat&logo=langchain&logoColor=white)](https://langchain.com/)
@@ -80,7 +81,7 @@ graph LR
     
     %% 검색 및 AI
     G[사용자 쿼리] --> H[FastAPI] <--> J[LangGraph AI]
-    F --> I[하이브리드 검색] <--> J
+    F --> I[Lambda<br/>하이브리드 검색] <--> J
     H <--> K[(Redis<br/>대화 캐시)]
     
     %% 프론트엔드
@@ -106,7 +107,7 @@ graph LR
 
 *   **[데이터 수집](./DataCollection/Crawler/README.md)**: `Airflow`가 `Crawler`를 주기적으로 실행하여 채용 정보를 수집하고 `AWS DynamoDB`에 저장합니다.
 *   **[데이터 처리 및 인덱싱](./DataCollection/DynamoToOpensearch/README.md)**: `DynamoDB`의 데이터를 전처리하고 벡터 임베딩을 생성하여 `OpenSearch`에 키워드 및 벡터 인덱스를 구축합니다.
-*   **[하이브리드 검색](./Retrieval/README.md)**: `OpenSearch`에서 BM25 키워드 검색과 Dense 벡터 검색을 동시에 수행하고, 점수 정규화 및 재정렬을 통해 검색 정확도를 극대화합니다.
+*   **[하이브리드 검색](./Retriever/README.md)**: `OpenSearch`에서 BM25 키워드 검색과 Dense 벡터 검색을 동시에 수행하고, AWS Lambda 기반의 서버리스 아키텍처로 확장 가능한 검색 서비스를 제공합니다.
 *   **[AI 워크플로우](./WorkFlow/README.md)**: 검색 결과를 바탕으로 AI 에이전트가 작업을 수행하여 최종 응답을 생성합니다.
 *   **[백엔드 API](./Backend/README.md)**: `FastAPI`를 통해 전체 워크플로우를 API로 노출합니다.
 *   **[프론트엔드](./Frontend/README.md)**: 백엔드 API와 통신하여 사용자에게 서비스를 제공합니다.
