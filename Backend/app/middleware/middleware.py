@@ -103,14 +103,16 @@ class EnhancedSessionMiddleware(BaseHTTPMiddleware):
         
         # 새 세션인 경우 쿠키 설정 (강제 만료 옵션 추가)
         if new_session:
+            # 프로덕션 환경에서는 secure=True, 개발에서는 False
+            is_production = os.getenv("DEBUG", "True").lower() == "false"
             response.set_cookie(
                 key=SESSION_COOKIE_NAME,
                 value=session_id,
                 max_age=1800,  # 30분
                 path="/",
                 httponly=True,
-                samesite='lax',
-                secure=False
+                samesite='none' if is_production else 'lax',  # 크로스 사이트 허용
+                secure=is_production  # HTTPS에서만 secure=True
             )
             print(f"🍪 Set new session cookie: {session_id[:8]}...")
             
@@ -135,13 +137,15 @@ class SessionMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         
         if not request.cookies.get(SESSION_COOKIE_NAME):
+            # 프로덕션 환경에서는 secure=True, 개발에서는 False
+            is_production = os.getenv("DEBUG", "True").lower() == "false"
             response.set_cookie(
                 key=SESSION_COOKIE_NAME,
                 value=session_id,
                 path="/",
                 httponly=True,
-                samesite='lax',
-                secure=False
+                samesite='none' if is_production else 'lax',  # 크로스 사이트 허용
+                secure=is_production  # HTTPS에서만 secure=True
             )
             
         return response 
