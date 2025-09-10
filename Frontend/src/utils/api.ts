@@ -17,13 +17,41 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     console.log('🚀 API Request:', config.method?.toUpperCase(), config.url);
-    // Log session cookie presence
+    
+    // 페이지 로드 후 첫 번째 요청인 경우 특별 헤더 추가
+    if (isPageLoad) {
+      config.headers['X-Page-Load'] = 'true';
+      config.headers['X-Page-Load-Timestamp'] = Date.now().toString();
+      config.headers['X-Force-New-Session'] = 'true';
+      console.log('🔄 First request after page load - added session reset headers');
+      console.log('📤 Headers added:', {
+        'X-Page-Load': 'true',
+        'X-Page-Load-Timestamp': config.headers['X-Page-Load-Timestamp'],
+        'X-Force-New-Session': 'true'
+      });
+      isPageLoad = false; // 첫 번째 요청 후 플래그 해제
+    }
+    
+    // 전체 쿠키 상태 로깅
+    console.log('🍪 All cookies:', document.cookie);
+    
+    // 세션 쿠키 확인
     const sessionCookie = document.cookie.split(';').find(c => c.trim().startsWith('session_id='));
     if (sessionCookie) {
-      console.log('🍪 Session cookie present:', sessionCookie.split('=')[1]);
+      const sessionId = sessionCookie.split('=')[1];
+      console.log('🍪 Session cookie present:', sessionId.substring(0, 8) + '...');
     } else {
-      console.log('❌ No session cookie found');
+      console.log('❌ No session cookie found - backend will create new session');
     }
+    
+    // 요청 헤더 전체 로깅 (디버깅용)
+    console.log('📋 Request headers:', {
+      'X-Page-Load': config.headers['X-Page-Load'],
+      'X-Force-New-Session': config.headers['X-Force-New-Session'],
+      'Content-Type': config.headers['Content-Type'],
+      'User-Agent': navigator.userAgent.substring(0, 50) + '...'
+    });
+    
     return config;
   },
   (error) => {
@@ -32,106 +60,62 @@ api.interceptors.request.use(
   }
 );
 
-// Session renewal flag to prevent multiple renewal attempts
-let isRenewing = false;
-let failedQueue: Array<{ resolve: (value?: any) => void; reject: (reason?: any) => void }> = [];
+// 단순화된 에러 처리 - 복잡한 갱신 로직 제거
 
-const processQueue = (error: any, token: string | null = null) => {
-  failedQueue.forEach(({ resolve, reject }) => {
-    if (error) {
-      reject(error);
-    } else {
-      resolve(token);
-    }
-  });
-  
-  failedQueue = [];
-};
+// 페이지 로드 시 기대하는 세션 ID 저장
+let expectedNewSessionAfterPageLoad = false;
+let lastKnownSessionId: string | null = null;
 
-// 응답 인터셉터
+// 단순화된 응답 인터셉터
 api.interceptors.response.use(
   (response) => {
     console.log('✅ API Response:', response.status, response.config.url);
     
-    // Check for session renewal indicators in response headers
-    if (response.headers['x-session-renewed']) {
-      console.log('🔄 Session was automatically renewed by backend');
-      // Session renewal handled silently in background - no user notification needed
+    // 세션 리셋 헤더 확인
+    const sessionReset = response.headers['x-session-reset'];
+    const newSessionId = response.headers['x-new-session-id'];
+    
+    if (sessionReset === 'true') {
+      console.log('🔄 Backend confirmed session reset');
+      expectedNewSessionAfterPageLoad = false;
+      lastKnownSessionId = null;
     }
     
-    // Check for new session cookie
-    const setCookieHeader = response.headers['set-cookie'];
-    if (setCookieHeader && setCookieHeader.includes('session_id=')) {
-      console.log('🍪 New session cookie set by backend');
+    // 채팅 응답에서 세션 ID 확인
+    if (response.config.url?.includes('/v1/chat') && response.data?.session_id) {
+      const responseSessionId = response.data.session_id;
+      
+      if (expectedNewSessionAfterPageLoad && lastKnownSessionId && responseSessionId === lastKnownSessionId) {
+        console.warn('⚠️ WARNING: Expected new session but got same ID:', responseSessionId);
+        console.warn('🔄 Forcing manual session invalidation...');
+        
+        // 강제로 세션 무효화
+        forceNewSession();
+        
+        // 백엔드에도 강제 리셋 요청
+        fetch('/api/v1/session/clear', {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { 'X-Force-Clear': 'true' }
+        }).catch(e => console.log('Failed to force clear:', e));
+        
+        return Promise.reject(new Error('Session was not properly reset. Please try again.'));
+      }
+      
+      lastKnownSessionId = responseSessionId;
+      expectedNewSessionAfterPageLoad = false;
     }
     
     return response;
   },
-  async (error) => {
-    const originalRequest = error.config;
+  (error) => {
+    console.error('❌ API Error:', error.response?.status, error.message);
     
-    // Handle session expiry (401/403) with automatic renewal
-    if ((error.response?.status === 401 || error.response?.status === 403) && !originalRequest._retry) {
-      console.log('🔑 Session expired (401/403), attempting renewal...');
-      
-      if (isRenewing) {
-        console.log('⏳ Already renewing session, queuing request...');
-        // If already renewing, queue this request
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
-        }).then(() => {
-          console.log('🔄 Retrying queued request after renewal');
-          return api(originalRequest);
-        }).catch((err) => {
-          console.error('❌ Queued request failed:', err);
-          return Promise.reject(err);
-        });
-      }
-      
-      originalRequest._retry = true;
-      isRenewing = true;
-      console.log('🔄 Starting session renewal process...');
-      
-      try {
-        // Attempt session renewal by making a simple request to a different endpoint to avoid loops
-        // Use a minimal endpoint that doesn't require session validation
-        console.log('🔧 Attempting session renewal via /v1/session/stats...');
-        await api.get('/v1/session/stats');
-        
-        console.log('✅ Session renewal successful!');
-        // Session renewed successfully, process queued requests
-        processQueue(null, 'renewed');
-        
-        // Session renewal handled silently - no need to notify user about background session management
-        console.log('Session renewed successfully in background');
-        
-        console.log('🔄 Retrying original request after renewal...');
-        // Retry the original request
-        return api(originalRequest);
-        
-      } catch (renewError) {
-        console.error('❌ Session renewal failed:', renewError);
-        
-        // Session renewal failed, process queue with error
-        processQueue(renewError, null);
-        
-        // Only dispatch session expiry event for actual failures that affect user experience
-        if (renewError.response?.status !== 401 && renewError.response?.status !== 403) {
-          window.dispatchEvent(new CustomEvent('sessionExpired', {
-            detail: { message: 'Session management error occurred' }
-          }));
-        } else {
-          console.log('Session could not be renewed, but handled silently');
-        }
-        
-        return Promise.reject(renewError);
-      } finally {
-        isRenewing = false;
-        console.log('🏁 Session renewal process completed');
-      }
+    // 401/403 에러 시 단순하게 에러만 반환 (복잡한 갱신 로직 제거)
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      console.log('🔑 Session expired - user will need to refresh page');
     }
     
-    console.error('API Error:', error.response?.status, error.message);
     return Promise.reject(error);
   }
 );
@@ -282,5 +266,136 @@ export const clearSession = async (): Promise<ApiResponse<{ message: string }>> 
     throw error;
   }
 };
+
+// 페이지 로드 플래그 (새로고침 감지용)
+let isPageLoad = true;
+
+// 새로고침 시 완전히 새로운 세션 생성
+export const forceNewSession = (): void => {
+  try {
+    console.log('🔄 Forcing new session on page load...');
+    isPageLoad = true; // 페이지 로드 플래그 설정
+    expectedNewSessionAfterPageLoad = true; // 새 세션 기대 플래그 설정
+    
+    // 현재 쿠키 상태 로깅
+    console.log('🍪 Current cookies before deletion:', document.cookie);
+    
+    // 더 강력한 쿠키 삭제 전략
+    const cookiesToDelete = ['session_id'];
+    const hostname = window.location.hostname;
+    const port = window.location.port;
+    const protocol = window.location.protocol;
+    
+    console.log(`🌐 Current location: ${protocol}//${hostname}${port ? ':' + port : ''}`);
+    
+    cookiesToDelete.forEach(cookieName => {
+      // 현재 쿠키 값 확인
+      const currentValue = document.cookie.split(';').find(c => c.trim().startsWith(`${cookieName}=`));
+      console.log(`🔍 Current ${cookieName} cookie:`, currentValue);
+      
+      // 더 포괄적인 삭제 시도
+      const deletionAttempts = [
+        // 기본 삭제
+        `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`,
+        `${cookieName}=; Max-Age=0; path=/;`,
+        
+        // 현재 도메인 관련
+        `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${hostname};`,
+        `${cookieName}=; Max-Age=0; path=/; domain=${hostname};`,
+        
+        // 점 도메인 (subdomain 포함)
+        `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.${hostname};`,
+        `${cookieName}=; Max-Age=0; path=/; domain=.${hostname};`,
+        
+        // API path 관련
+        `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/api;`,
+        `${cookieName}=; Max-Age=0; path=/api;`,
+        `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/api; domain=${hostname};`,
+        
+        // localhost 특별 처리
+        ...(hostname === 'localhost' ? [
+          `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=localhost;`,
+          `${cookieName}=; Max-Age=0; path=/; domain=localhost;`,
+          `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`,
+          `${cookieName}=; Max-Age=0; path=/;`
+        ] : []),
+        
+        // 127.0.0.1 특별 처리
+        ...(hostname === '127.0.0.1' ? [
+          `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=127.0.0.1;`,
+          `${cookieName}=; Max-Age=0; path=/; domain=127.0.0.1;`
+        ] : [])
+      ];
+      
+      deletionAttempts.forEach((attempt, index) => {
+        document.cookie = attempt;
+        console.log(`🗑️ Cookie deletion attempt ${index + 1}:`, attempt);
+      });
+      
+      // 삭제 후 즉시 확인
+      setTimeout(() => {
+        const afterValue = document.cookie.split(';').find(c => c.trim().startsWith(`${cookieName}=`));
+        console.log(`🔍 ${cookieName} after deletion:`, afterValue || 'DELETED');
+      }, 50);
+    });
+    
+    // 로컬 스토리지와 세션 스토리지도 정리
+    localStorage.removeItem('session_id');
+    sessionStorage.removeItem('session_id');
+    localStorage.removeItem('page_unloaded');
+    
+    // 브라우저 캐시도 강제로 무효화
+    if ('caches' in window) {
+      caches.keys().then(cacheNames => {
+        cacheNames.forEach(cacheName => {
+          console.log('🗑️ Clearing cache:', cacheName);
+          caches.delete(cacheName);
+        });
+      });
+    }
+    
+    // 최종 상태 확인
+    setTimeout(() => {
+      console.log('🍪 Final cookies state:', document.cookie);
+      console.log('💾 localStorage session_id:', localStorage.getItem('session_id'));
+      console.log('📦 sessionStorage session_id:', sessionStorage.getItem('session_id'));
+      console.log('✅ Complete session cleanup finished');
+    }, 200);
+    
+  } catch (error) {
+    console.error('❌ Failed to clear session data:', error);
+  }
+};
+
+// 개발자 도구용 디버깅 함수들 (전역 window 객체에 추가)
+if (typeof window !== 'undefined') {
+  (window as any).debugSession = {
+    // 현재 세션 상태 확인
+    checkSession: () => {
+      console.log('=== 세션 디버깅 정보 ===');
+      console.log('🍪 현재 쿠키:', document.cookie);
+      console.log('💾 로컬스토리지:', localStorage.getItem('session_id'));
+      console.log('📦 세션스토리지:', sessionStorage.getItem('session_id'));
+      console.log('🔄 페이지로드 플래그:', isPageLoad);
+    },
+    
+    // 강제로 새 세션 생성
+    forceNew: () => {
+      console.log('🔄 개발자 도구에서 새 세션 강제 생성...');
+      forceNewSession();
+    },
+    
+    // 다음 요청에서 새 세션이 생성되도록 설정
+    markPageLoad: () => {
+      isPageLoad = true;
+      console.log('🏁 다음 API 요청에서 X-Page-Load 헤더 전송됨');
+    }
+  };
+  
+  console.log('🛠️ 세션 디버깅 함수 사용법:');
+  console.log('  - debugSession.checkSession(): 현재 세션 상태 확인');
+  console.log('  - debugSession.forceNew(): 새 세션 강제 생성');
+  console.log('  - debugSession.markPageLoad(): 다음 요청을 페이지 로드로 표시');
+}
 
 export default api; 

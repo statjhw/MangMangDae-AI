@@ -49,7 +49,7 @@ const UserInfoForm = ({ onSubmit, loading = false }: UserInfoFormProps) => {
   const { register, handleSubmit, watch, setValue, control, formState: { errors } } = useForm<FormData>();
   
   const watchedValues = watch();
-  const hasExperience = watchedValues.career?.hasExperience === '있음';
+  const hasExperience = watchedValues.career?.hasExperience === '경력';
   const selectedJobCategory = watchedValues.preferences?.jobCategory;
 
   // 직군 선택시 직무 목록 업데이트
@@ -74,7 +74,7 @@ const UserInfoForm = ({ onSubmit, loading = false }: UserInfoFormProps) => {
     // user_input 형식으로 데이터 변환
     const user_input = {
       candidate_major: `대학교: ${data.education.university || '미기재'}, 전공: ${data.education.major}, 상태: ${data.education.status}`,
-      candidate_career: `경력: ${data.career.hasExperience}${data.career.recentJob ? `, 최근 직업: ${data.career.recentJob}` : ''}`,
+      candidate_career: `${data.career.hasExperience}${data.career.recentJob ? `, 최근 직업: ${data.career.recentJob}` : ''}`,
       candidate_interest: data.preferences.desiredJob,
       candidate_location: data.preferences.desiredLocation,
       candidate_tech_stack: data.additional.techStack ? data.additional.techStack.split(',').map(s => s.trim()) : [],
@@ -153,13 +153,13 @@ const UserInfoForm = ({ onSubmit, loading = false }: UserInfoFormProps) => {
             name="career.hasExperience"
             control={control}
             defaultValue=""
-            rules={{ required: '경력 유무를 선택해주세요' }}
+            rules={{ required: '경력 구분을 선택해주세요' }}
             render={({ field }) => (
               <Select
-                label="경력 유무"
+                label="경력 구분"
                 options={[
-                  { value: '있음', label: '있음' },
-                  { value: '없음', label: '없음' }
+                  { value: '경력', label: '경력' },
+                  { value: '신입', label: '신입' }
                 ]}
                 value={field.value || ''}
                 onChange={field.onChange}
@@ -268,7 +268,7 @@ const UserInfoForm = ({ onSubmit, loading = false }: UserInfoFormProps) => {
       )
     },
     {
-      title: '기술 스택',
+      title: '기술 스택 & 자격증',
       icon: Code,
       fields: (
         <motion.div
@@ -284,11 +284,11 @@ const UserInfoForm = ({ onSubmit, loading = false }: UserInfoFormProps) => {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-secondary-800 flex items-center gap-2">
-                  보유 기술 스택
+                  보유 기술 스택 & 자격증
                   <Zap className="w-5 h-5 text-emerald-600" />
                 </h3>
                 <p className="text-sm text-secondary-600 mt-1">
-                  현재 보유하고 있는 기술들을 알려주세요
+                  보유하고 있는 기술, 자격증, 도구 등을 모두 입력해주세요
                 </p>
               </div>
             </div>
@@ -302,8 +302,8 @@ const UserInfoForm = ({ onSubmit, loading = false }: UserInfoFormProps) => {
                 <div className="relative">
                   <motion.textarea
                     ref={field.ref}
-                    className="w-full px-4 py-4 border-2 border-emerald-200 rounded-xl bg-white/70 backdrop-blur-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 placeholder-secondary-400 resize-none text-base leading-relaxed min-h-[100px] shadow-sm"
-                    placeholder="🛠️ 예시: Python, React, TypeScript, AWS, Docker, Git, PostgreSQL"
+                    className="w-full px-4 py-4 border-2 border-emerald-200 rounded-xl bg-white/70 backdrop-blur-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 placeholder-secondary-400 resize-none text-base leading-relaxed min-h-[120px] shadow-sm"
+                    placeholder="💼 예시: Python, React, TypeScript, AWS, Docker, Git, PostgreSQL, 정보처리기사, AWS Solutions Architect, PMP, SQLD, 토익 850점, Photoshop, Figma, 데이터분석 준전문가(ADsP)"
                     value={field.value || ''}
                     onChange={field.onChange}
                     whileFocus={{ scale: 1.02 }}
@@ -323,26 +323,31 @@ const UserInfoForm = ({ onSubmit, loading = false }: UserInfoFormProps) => {
               )}
             />
             
-            <div className="mt-4 space-y-2">
+            <div className="mt-4 space-y-3">
               <div className="flex items-center gap-2 text-sm text-secondary-600">
                 <span className="flex items-center gap-1">
                   <span className="text-emerald-600">💡</span>
-                  팁: 쉼표로 구분하여 입력해주세요
+                  팁: 쉼표로 구분하여 입력하세요 (기술, 자격증, 점수 등 모두 포함)
                 </span>
               </div>
+              
+              {/* 간단한 추천 버튼들 */}
               <div className="flex flex-wrap gap-2">
-                {['Python', 'JavaScript', 'React', 'Node.js', 'AWS', 'Docker'].map((tech) => (
+                {[
+                  'Python', 'JavaScript', 'React', 'Java', 'AWS', 'Docker', 'MySQL', 'Git',
+                  'Figma', 'Photoshop', '정보처리기사', 'SQLD', '토익', 'OPIC', 'AWS Solutions Architect'
+                ].map((item) => (
                   <button
-                    key={tech}
+                    key={item}
                     type="button"
                     onClick={() => {
                       const currentValue = watchedValues.additional?.techStack || '';
-                      const newValue = currentValue ? `${currentValue}, ${tech}` : tech;
+                      const newValue = currentValue ? `${currentValue}, ${item}` : item;
                       setValue('additional.techStack', newValue);
                     }}
-                    className="px-3 py-1 bg-white/80 hover:bg-emerald-100 border border-emerald-200 rounded-full text-sm text-emerald-700 transition-colors duration-200 shadow-sm hover:shadow-md"
+                    className="px-3 py-1.5 bg-white/80 hover:bg-emerald-100 border border-emerald-200 rounded-full text-sm text-emerald-700 transition-colors duration-200 shadow-sm hover:shadow-md"
                   >
-                    + {tech}
+                    + {item}
                   </button>
                 ))}
               </div>
@@ -381,18 +386,36 @@ const UserInfoForm = ({ onSubmit, loading = false }: UserInfoFormProps) => {
               name="additional.question"
               control={control}
               defaultValue=""
-              rules={{ required: '상세 질문을 입력해주세요' }}
+              rules={{ 
+                required: '상세 질문을 입력해주세요',
+                minLength: {
+                  value: 25,
+                  message: '질문은 최소 25자 이상 입력해주세요'
+                },
+                maxLength: {
+                  value: 500,
+                  message: '질문은 최대 500자까지 입력 가능합니다'
+                }
+              }}
               render={({ field }) => (
                 <div className="relative">
                   <motion.textarea
                     ref={field.ref}
                     className="w-full px-4 py-4 border-2 border-primary-200 rounded-xl bg-white/70 backdrop-blur-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 placeholder-secondary-400 resize-none text-base leading-relaxed min-h-[140px] shadow-sm"
-                    placeholder="💭 예시: AI 분야로 커리어를 전환하고 싶은데, 어떤 준비를 해야 할까요? 현재 제 경험을 어떻게 활용할 수 있을까요?"
+                    placeholder="💭 예시: AI 분야로 커리어를 전환하고 싶은데, 어떤 준비를 해야 할까요? 현재 제 경험을 어떻게 활용할 수 있을까요? (최소 25자, 최대 500자)"
                     value={field.value || ''}
                     onChange={field.onChange}
                     whileFocus={{ scale: 1.02 }}
                     transition={{ duration: 0.2 }}
                   />
+                  
+                  {/* 글자 수 카운터 */}
+                  <div className="absolute bottom-3 right-3 text-xs text-secondary-500 bg-white/80 px-2 py-1 rounded-full">
+                    {(field.value || '').length}/500
+                    {(field.value || '').length < 25 && (
+                      <span className="text-red-500 ml-1">(최소 25자)</span>
+                    )}
+                  </div>
                   {errors.additional?.question && (
                     <motion.p
                       className="mt-2 text-sm text-red-600 flex items-center gap-1"

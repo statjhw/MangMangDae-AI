@@ -42,10 +42,10 @@ const PieChart = ({
           <Pie
             data={chartData}
             cx="50%"
-            cy="50%"
+            cy="45%"
             labelLine={false}
-            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-            outerRadius={80}
+            label={false}
+            outerRadius={90}
             fill="#8884d8"
             dataKey="value"
             animationDuration={1000}
@@ -72,10 +72,17 @@ const PieChart = ({
           />
           <Legend 
             verticalAlign="bottom" 
-            height={36}
-            formatter={(value, entry) => (
-              <span style={{ color: '#374151' }}>{value}</span>
-            )}
+            height={60}
+            wrapperStyle={{ paddingTop: '20px' }}
+            formatter={(value, entry) => {
+              const item = chartData.find(d => d.name === value);
+              const percentage = item ? ((item.value / chartData.reduce((sum, item) => sum + item.value, 0)) * 100).toFixed(0) : '0';
+              return (
+                <span style={{ color: '#374151', fontSize: '12px' }}>
+                  {value} ({percentage}%)
+                </span>
+              );
+            }}
           />
         </RechartsPieChart>
       </ResponsiveContainer>

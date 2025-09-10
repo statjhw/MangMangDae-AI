@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Brain, TrendingUp, Users, ArrowRight, Star } from 'lucide-react';
+import { Brain, TrendingUp, Users, ArrowRight, Sparkles } from 'lucide-react';
 import UserInfoForm from '../components/features/UserInfoForm';
 import ChatSection from '../components/features/ChatSection';
 import UserStatSection from '../components/features/UserStatSection';
@@ -47,7 +47,7 @@ const HomePage = () => {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen pt-16">
       {/* 히어로 섹션 */}
       <section className="relative overflow-hidden bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800 text-white py-20">
         {/* 배경 애니메이션 요소 */}
@@ -121,6 +121,10 @@ const HomePage = () => {
             <p className="text-lg text-secondary-600 max-w-2xl mx-auto">
               최신 AI 기술과 빅데이터를 활용하여 개인 맞춤형 커리어 분석을 제공합니다
             </p>
+            <div className="mt-4 inline-flex items-center space-x-2 px-4 py-2 bg-green-50 border border-green-200 rounded-full">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="text-sm font-medium text-green-700">비영리 목적으로 운영됩니다</span>
+            </div>
           </motion.div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -206,26 +210,49 @@ const HomePage = () => {
               {/* 사용자 맞춤 통계 섹션 또는 통계 보기 버튼 */}
               <div className="mb-12">
                 {!showStatSection ? (
-                  <motion.div key="show-stat-button" className="text-center">
-                    <motion.button
-                      className="bg-primary-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-primary-700 transition-colors duration-200 inline-flex items-center space-x-2 disabled:bg-primary-400 disabled:cursor-not-allowed"
-                      onClick={() => setShowStatSection(true)}
-                      whileHover={{ scale: statLoading ? 1 : 1.05 }}
-                      whileTap={{ scale: statLoading ? 1 : 0.95 }}
-                      disabled={statLoading}
+                  <motion.div 
+                    key="show-stat-button" 
+                    className="text-center"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                  >
+                    {/* 강조 배경 */}
+                    <div className="relative inline-block">
+                      <div className="absolute inset-0 bg-gradient-to-r from-primary-400 to-blue-500 rounded-2xl blur-lg opacity-30 animate-pulse"></div>
+                      <motion.button
+                        className="relative bg-gradient-to-r from-primary-600 to-blue-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:from-primary-700 hover:to-blue-700 transition-all duration-300 inline-flex items-center space-x-3 disabled:from-primary-400 disabled:to-blue-400 disabled:cursor-not-allowed shadow-xl"
+                        onClick={() => setShowStatSection(true)}
+                        whileHover={{ scale: statLoading ? 1 : 1.08, y: -2 }}
+                        whileTap={{ scale: statLoading ? 1 : 0.95 }}
+                        disabled={statLoading}
+                      >
+                        {statLoading ? (
+                          <>
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                            <span>통계 생성 중...</span>
+                          </>
+                        ) : (
+                          <>
+                            <TrendingUp className="h-6 w-6" />
+                            <span>📊 나의 정보 통계 보기</span>
+                            <Sparkles className="h-5 w-5 animate-pulse" />
+                          </>
+                        )}
+                      </motion.button>
+                    </div>
+                    
+                    {/* 설명 텍스트 */}
+                    <motion.p 
+                      className="mt-4 text-secondary-600 text-sm max-w-md mx-auto"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.7 }}
                     >
-                      {statLoading ? (
-                        <>
-                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                          <span>통계 생성 중...</span>
-                        </>
-                      ) : (
-                        <>
-                          <TrendingUp className="h-5 w-5" />
-                          <span>맞춤 통계 보기</span>
-                        </>
-                      )}
-                    </motion.button>
+                      🎯 입력하신 정보를 바탕으로 맞춤형 시장 분석과 
+                      <br />
+                      <strong className="text-primary-600">경쟁력 평가</strong>를 제공해드립니다!
+                    </motion.p>
                   </motion.div>
                 ) : (
                   <UserStatSection 
@@ -264,15 +291,9 @@ const HomePage = () => {
               <Brain className="h-6 w-6 text-primary-400" />
               <span className="text-xl font-bold">MMD</span>
             </div>
-            <p className="text-secondary-300 mb-4">
+            <p className="text-secondary-300">
               망망대 AI - 스마트한 커리어 분석 플랫폼
             </p>
-            <div className="flex items-center justify-center space-x-1 text-yellow-400">
-              {[...Array(5)].map((_, i) => (
-                <Star key={i} className="h-4 w-4 fill-current" />
-              ))}
-              <span className="ml-2 text-secondary-300">4.9/5.0</span>
-            </div>
           </div>
         </div>
       </footer>
