@@ -101,6 +101,24 @@ export interface UserStatResponse {
   tech_stack: {
     [techName: string]: number;
   };
+  location?: {
+    location: string;
+    total_jobs: number;
+    popular_categories?: Array<{
+      category: string;
+      count: number;
+    }>;
+  };
+  career?: {
+    percentage: number;
+    matching_jobs: number;
+    total_jobs: number;
+  };
+  company_size_distribution?: {
+    distribution: {
+      [companySize: string]: number;
+    };
+  };
 }
 
 // 세션 정보 타입

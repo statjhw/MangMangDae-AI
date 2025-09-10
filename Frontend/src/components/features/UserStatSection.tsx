@@ -389,7 +389,7 @@ const UserStatSection = ({ userStat, loading = false }: UserStatSectionProps) =>
                 <div key={idx} className="space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium text-gray-700">{size.split(' ')[0]}</span>
-                    <span className="text-sm font-bold text-indigo-600">{percentage}%</span>
+                    <span className="text-sm font-bold text-indigo-600">{percentage as number}%</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <motion.div 
