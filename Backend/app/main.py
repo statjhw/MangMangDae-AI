@@ -25,6 +25,8 @@ _default_origins = [
     "http://localhost:3001",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:3001",
+    "https://mmd-rose.vercel.app",
+    "https://mmd-oof1vrst8-statjhws-projects.vercel.app",
 ]
 
 _origins_env = os.getenv("FRONTEND_ORIGINS", "").strip()
